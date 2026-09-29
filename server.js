@@ -49,7 +49,13 @@ async function getToken() {
   return tok;
 }
 
-const num = v => typeof v === 'boolean' ? (v ? 1 : 0) : (v === 'true' ? 1 : v === 'false' ? 0 : Number(v));
+const num = v => {
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  const t = String(v).trim().toLowerCase();
+  if (t === 'true' || t === 'on') return 1;
+  if (t === 'false' || t === 'off') return 0;
+  return Number(t);
+};
 
 async function readFBox() {
   const f = cfg.fbox, t = await getToken();
@@ -79,6 +85,24 @@ async function readFBox() {
   return { values, conn };
 }
 
+// ---------- Bridge mode: values pushed from the FBox Manager page ----------
+const INGEST = E.INGEST_TOKEN || cfg.ingestToken || '';
+const pushed = {};                          // group -> { t, vals: { name: value } }
+const STALE = 120000;
+function readPush() {
+  const values = {}; let newest = 0;
+  for (const p of allPoints) {
+    const g = pushed[p.group]; if (!g) continue;
+    newest = Math.max(newest, g.t);
+    if (Date.now() - g.t > STALE) continue;
+    const v = g.vals[p.name]; if (v === undefined || v === null || v === '') continue;
+    const n = num(v); if (!isNaN(n)) values[p.key] = n;
+  }
+  if (!newest) throw new Error('Waiting for the first data from the FBox bridge.');
+  if (Date.now() - newest > STALE) throw new Error('The FBox bridge stopped sending data ' + Math.max(1, Math.round((Date.now() - newest) / 60000)) + ' min ago. Check that FBox Manager is open and logged in on the host computer.');
+  return { values, conn: 'online' };
+}
+
 // ---------- Demo data (same names and units as the real box) ----------
 let demoFuel = 2410, demoRun = 0;
 function readDemo() {
@@ -101,7 +125,7 @@ let polling = false;
 async function poll() {
   if (polling) return; polling = true;
   try {
-    const { values, conn } = cfg.mode === 'fbox' ? await readFBox() : readDemo();
+    const { values, conn } = cfg.mode === 'fbox' ? await readFBox() : cfg.mode === 'push' ? readPush() : readDemo();
     gens.forEach(g => {                     // HRS + MIN + SEC -> decimal hours
       const h = g.id + '.hours';
       if (values[h] != null) values[h] += (values[g.id + '.min'] || 0) / 60 + (values[g.id + '.sec'] || 0) / 3600;
@@ -125,7 +149,21 @@ poll(); setInterval(poll, Math.max(8, cfg.pollSeconds) * 1000);
 
 // ---------- Web server ----------
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
+const CORS = { 'Access-Control-Allow-Origin': 'https://fbox360.com', 'Access-Control-Allow-Headers': 'Content-Type, X-Token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 http.createServer((req, res) => {
+  if (req.url.split('?')[0] === '/api/ingest') {           // protected by its own secret token, not the page password
+    if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
+    if (req.method !== 'POST' || !INGEST || req.headers['x-token'] !== INGEST) { res.writeHead(403, CORS); return res.end('Forbidden'); }
+    let body = ''; req.on('data', d => { body += d; if (body.length > 1e5) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const j = JSON.parse(body);
+        for (const [g, vals] of Object.entries(j.groups || {})) pushed[g] = { t: Date.now(), vals };
+        res.writeHead(200, CORS); res.end('ok'); poll();
+      } catch (e) { res.writeHead(400, CORS); res.end('Bad data'); }
+    });
+    return;
+  }
   if (cfg.sharePassword) {
     const h = req.headers.authorization || '';
     const pass = Buffer.from(h.split(' ')[1] || '', 'base64').toString().split(':').slice(1).join(':');
@@ -141,7 +179,7 @@ http.createServer((req, res) => {
       site: { name: s.name, tankLitres: s.tankLitres || null, ratedKva: s.ratedKva || null, lowFuelHours: s.lowFuelHours ?? 12, details: s.details },
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })),
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
-      demo: cfg.mode !== 'fbox', now: Date.now(), pollSeconds: cfg.pollSeconds,
+      demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
       conn: state.conn, error: state.error, updated: state.updated, values: state.values, history
     }));
   }
