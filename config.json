@@ -1,0 +1,52 @@
+{
+  "port": 3000,
+  "mode": "demo",
+  "pollSeconds": 10,
+  "sharePassword": "",
+
+  "site": {
+    "name": "Al Dhour Power House",
+    "tankLitres": null,
+    "ratedKva": null,
+    "lowFuelHours": 12,
+    "details": {
+      "Site": "Al Dhour",
+      "FBox serial": "300223071126",
+      "FBox group": "ELIE 0",
+      "Generators": "GEN 1 and GEN 2"
+    }
+  },
+
+  "fbox": {
+    "host": "https://openapi.fbox360.com",
+    "boxNo": "300223071126",
+    "boxId": "",
+    "auth": { "method": "client_credentials", "clientId": "", "clientSecret": "", "username": "", "password": "" }
+  },
+
+  "generators": [
+    { "id": "gen1", "label": "GEN 1", "group": "GEN 1", "status": { "name": "GEN 1 STATUS", "group": "PWR STATUS" }, "names": {} },
+    { "id": "gen2", "label": "GEN 2", "group": "GEN 2", "status": { "name": "GEN 2 STATUS", "group": "PWR STATUS" },
+      "names": { "i1": "Amp1", "i2": "Amp2", "i3": "Amp3", "kw": "TOTAL KW" } }
+  ],
+
+  "points": [
+    { "key": "v1",    "name": "L1 - N", "decimals": 0 },
+    { "key": "v2",    "name": "L2 - N", "decimals": 0 },
+    { "key": "v3",    "name": "L3 - N", "decimals": 0 },
+    { "key": "i1",    "name": "Amp 1",  "decimals": 1 },
+    { "key": "i2",    "name": "Amp 2",  "decimals": 1 },
+    { "key": "i3",    "name": "Amp 3",  "decimals": 1 },
+    { "key": "freq",  "name": "HZ",     "decimals": 1 },
+    { "key": "kw",    "name": "KW",     "decimals": 1 },
+    { "key": "hours", "name": "HRS",    "decimals": 0 },
+    { "key": "min",   "name": "MIN",    "decimals": 0 },
+    { "key": "sec",   "name": "SEC",    "decimals": 0 }
+  ],
+
+  "shared": [
+    { "key": "fuel_l",       "name": "DIESEL (LITERS)", "group": "FUEL TANK",  "decimals": 0 },
+    { "key": "fuel_counter", "name": "FUEL COUNTER",    "group": "FUEL TANK",  "decimals": 0 },
+    { "key": "edl",          "name": "EDL STATUS",      "group": "PWR STATUS", "decimals": 0 }
+  ]
+}
