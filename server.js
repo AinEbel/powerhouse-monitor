@@ -151,5 +151,5 @@ http.createServer((req, res) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
     res.end(data);
-  });
+  '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };});
 }).listen(cfg.port, () => console.log('Dashboard on http://localhost:' + cfg.port + '  (mode: ' + cfg.mode + ')'));
