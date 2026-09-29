@@ -6,7 +6,7 @@
 
   "site": {
     "name": "Al Dhour Power House",
-    "tankLitres": null,
+    "tankLitres": 4000,
     "ratedKva": null,
     "lowFuelHours": 12,
     "details": {
