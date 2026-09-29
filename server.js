@@ -139,7 +139,7 @@ http.createServer((req, res) => {
     const s = cfg.site;
     return res.end(JSON.stringify({
       site: { name: s.name, tankLitres: s.tankLitres || null, ratedKva: s.ratedKva || null, lowFuelHours: s.lowFuelHours ?? 12, details: s.details },
-      generators: gens.map(({ id, label }) => ({ id, label })),
+      generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })),
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox', now: Date.now(), pollSeconds: cfg.pollSeconds,
       conn: state.conn, error: state.error, updated: state.updated, values: state.values, history
