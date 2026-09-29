@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Power house monitor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#e4e9ed; --panel:#f5f7f8; --ink:#16242d; --steel:#586b77; --line:#ccd4da; --tank:#dce3e8;
+  --fuel:#d59500; --low:#c0392b; --ok:#2a8657; --warn:#a86b00; --run:#2a8657; --g1:#1f5f8b; --g2:#7a4fa3;
+  font-family:"Barlow",system-ui,sans-serif; color:var(--ink);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#11181d;--panel:#1a242b;--ink:#e7eef2;--steel:#93a5b0;--line:#2b3a44;--tank:#22303a;--fuel:#f0b429;--low:#ef6a5b;--ok:#4cc38a;--warn:#e7a93b;--run:#4cc38a;--g1:#5eb0e8;--g2:#b892e0}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);padding:16px;min-height:100vh}
+.wrap{max-width:1120px;margin:0 auto}
+h1,h2,.num,.big,th,.tag{font-family:"Barlow Semi Condensed","Arial Narrow",sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:28px;font-weight:700;margin:0}
+.status{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--steel)}
+.dot{width:11px;height:11px;border-radius:50%;background:var(--steel);flex:none}
+.online .dot{background:var(--ok)} .offline .dot,.error .dot{background:var(--low)} .stale .dot{background:var(--warn)}
+.demo{background:var(--warn);color:#fff;padding:8px 14px;border-radius:4px;margin-bottom:12px;font-size:15px;display:none}
+.alerts{display:grid;gap:8px;margin-bottom:12px}
+.alert{border-left:5px solid var(--warn);background:var(--panel);padding:9px 14px;border-radius:4px;font-size:16px}
+.alert.bad{border-color:var(--low)} .alert b{font-weight:600}
+.alert.okay{border-color:var(--ok);color:var(--steel)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px}
+h2{font-size:17px;font-weight:600;margin:0 0 12px;color:var(--steel)}
+.top{display:grid;grid-template-columns:minmax(300px,1.1fr) 1fr;gap:14px;margin-bottom:14px}
+.gens{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:840px){.top,.gens{grid-template-columns:1fr}}
+.tankrow{display:flex;gap:20px;align-items:center}
+.big{font-size:60px;font-weight:700;line-height:.95;font-variant-numeric:tabular-nums}
+.big small{font-size:24px;font-weight:500;color:var(--steel);margin-left:4px}
+.sub{color:var(--steel);font-size:17px;margin-top:6px;font-variant-numeric:tabular-nums}
+.nofuel{color:var(--steel);font-size:16px;line-height:1.4;max-width:34ch}
+.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 20px;margin-top:2px}
+.kv b{display:block;font-family:"Barlow Semi Condensed",sans-serif;font-size:34px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.05}
+.kv span{font-size:14px;color:var(--steel)}
+.ghead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.ghead h2{margin:0;color:var(--ink);font-size:22px;font-weight:700}
+.tag{font-size:14px;font-weight:600;padding:3px 10px;border-radius:12px;background:var(--tank);color:var(--steel)}
+.tag.run{background:var(--run);color:#fff}
+.bar{height:10px;background:var(--tank);border-radius:2px;margin:12px 0 6px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;transition:width .6s}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:19px;margin-top:10px}
+th,td{padding:7px 4px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--steel);font-size:14px}
+.mini{display:flex;gap:26px;margin-top:12px;font-variant-numeric:tabular-nums}
+.mini b{font-family:"Barlow Semi Condensed",sans-serif;font-size:24px;font-weight:600}
+.mini span{display:block;font-size:13px;color:var(--steel)}
+.chart{width:100%;height:120px;display:block}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:840px){.charts{grid-template-columns:1fr}}
+.legend{display:flex;gap:16px;font-size:14px;color:var(--steel);margin-bottom:6px;flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:6px}
+.axis{display:flex;justify-content:space-between;font-size:12px;color:var(--steel)}
+dl{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:8px 24px;font-size:17px}
+dt{color:var(--steel)} dd{margin:0}
+footer{margin-top:12px;font-size:14px;color:var(--steel)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="name">Power house</h1>
+    <div class="status" id="status"><span class="dot"></span><span id="statustext">Connecting…</span></div>
+  </header>
+  <div class="demo" id="demo">Demo mode: these readings are simulated. Set "mode": "fbox" in config.json to show live data.</div>
+  <div class="alerts" id="alerts"></div>
+
+  <div class="top">
+    <section class="panel">
+      <h2>Fuel tank</h2>
+      <div class="tankrow" id="fuelbody"></div>
+    </section>
+    <section class="panel">
+      <h2>Site total</h2>
+      <div class="kv">
+        <div><b id="totkw">--</b><span>Power now (kW)</span></div>
+        <div><b id="totgens">--</b><span>Generators running</span></div>
+        <div><b id="mains">--</b><span>Mains (EDL)</span></div>
+        <div><b id="burn">--</b><span>Fuel use (L/h)</span></div>
+        <div style="grid-column:1/-1"><b id="left">--</b><span>Fuel left at this rate</span></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="gens" id="gens"></div>
+
+  <div class="charts">
+    <section class="panel"><h2>Diesel level, last 24 h</h2>
+      <svg class="chart" id="cFuel" viewBox="0 0 400 120" preserveAspectRatio="none"></svg>
+      <div class="axis"><span id="cFuelA"></span><span>now</span></div></section>
+    <section class="panel"><h2>Power, last 24 h</h2>
+      <div class="legend" id="pLegend"></div>
+      <svg class="chart" id="cKw" viewBox="0 0 400 120" preserveAspectRatio="none"></svg>
+      <div class="axis"><span id="cKwA"></span><span id="cKwMax"></span></div></section>
+  </div>
+
+  <section class="panel"><h2>Power house details</h2><dl id="details"></dl></section>
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = (v, d = 0) => v == null || isNaN(v) ? '--' : Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const COL = ['var(--g1)', 'var(--g2)'];
+let built = false;
+
+function line(svg, series, opts) {           // series: [{pts:[{t,v}], color}]
+  const all = series.flatMap(s => s.pts.filter(p => p.v != null));
+  if (all.length < 2) { svg.innerHTML = '<text x="200" y="64" text-anchor="middle" fill="currentColor" font-size="12" opacity=".5">Collecting data…</text>'; return; }
+  const t0 = Math.min(...all.map(p => p.t)), t1 = Math.max(...all.map(p => p.t));
+  const lo = opts.min ?? Math.min(...all.map(p => p.v));
+  const hi = opts.max ?? Math.max(10, ...all.map(p => p.v)) * 1.1;
+  const y = v => 112 - (v - lo) / ((hi - lo) || 1) * 104, x = t => (t - t0) / ((t1 - t0) || 1) * 400;
+  let g = '';
+  for (let i = 0; i <= 4; i++) g += '<path d="M0 ' + (8 + i * 26) + 'H400" stroke="var(--line)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+  series.forEach(s => {
+    const p = s.pts.filter(q => q.v != null);
+    if (p.length > 1) g += '<path d="' + p.map((q, i) => (i ? 'L' : 'M') + x(q.t).toFixed(1) + ' ' + y(q.v).toFixed(1)).join('') + '" fill="none" stroke="' + s.color + '" stroke-width="2.2" vector-effect="non-scaling-stroke"/>';
+  });
+  svg.innerHTML = g; return hi;
+}
+const ago = t => { const h = (Date.now() - t) / 36e5; return h >= 1 ? Math.round(h) + ' h ago' : Math.max(1, Math.round(h * 60)) + ' min ago'; };
+
+function build(s) {
+  $('gens').innerHTML = s.generators.map((g, n) => `
+    <section class="panel">
+      <div class="ghead"><h2>${g.label}</h2><span class="tag" id="${g.id}-tag">--</span></div>
+      <div class="big"><span id="${g.id}-kw">--</span><small>kW</small></div>
+      <div class="bar" id="${g.id}-barwrap"><i id="${g.id}-bar" style="background:${COL[n % 2]}"></i></div>
+      <div class="sub" id="${g.id}-load"></div>
+      <table><thead><tr><th></th><th>Volts</th><th>Amps</th></tr></thead><tbody>
+        ${[1, 2, 3].map(p => `<tr><td>L${p}</td><td id="${g.id}-v${p}">--</td><td id="${g.id}-i${p}">--</td></tr>`).join('')}
+      </tbody></table>
+      <div class="mini"><div><b id="${g.id}-freq">--</b><span>Hz</span></div><div><b id="${g.id}-hours">--</b><span>Engine hours</span></div></div>
+    </section>`).join('');
+  $('pLegend').innerHTML = s.generators.map((g, n) => `<span><i style="background:${COL[n % 2]}"></i>${g.label}</span>`).join('');
+  built = true;
+}
+
+async function refresh() {
+  let s;
+  try { const r = await fetch('/api/status', { cache: 'no-store' }); if (!r.ok) throw 0; s = await r.json(); }
+  catch (e) { setStatus('error', 'Cannot reach the monitor server'); return; }
+  if (!built) build(s);
+  document.title = s.site.name + ' monitor'; $('name').textContent = s.site.name;
+  $('demo').style.display = s.demo ? 'block' : 'none';
+  const v = s.values, dp = k => s.decimals[k] ?? 0, alerts = [];
+
+  // connection
+  const age = s.updated ? Math.round((s.now - s.updated) / 1000) : null;
+  let cls = s.conn, text = 'Online, updated ' + age + ' s ago';
+  if (s.conn === 'offline') { text = 'FBox offline'; alerts.push(['bad', 'FBox is offline', 'Readings below are the last values received.']); }
+  else if (s.conn === 'error') { text = 'Data error'; alerts.push(['bad', 'Cannot read the FBox', s.error || '']); }
+  else if (age == null) { cls = 'stale'; text = 'Waiting for data'; }
+  else if (age > 90) { cls = 'stale'; text = 'Data is ' + Math.round(age / 60) + ' min old'; }
+  setStatus(cls, text);
+
+  // fuel (the FBox reports litres)
+  const L = v.fuel_l, T = s.site.tankLitres, H = s.history;
+  const pct = L != null && T ? Math.max(0, Math.min(100, L / T * 100)) : null;
+  const f = H.filter(x => x.fuel != null && x.t > Date.now() - 3 * 36e5);
+  let rate = null;
+  if (f.length > 8) { const hrs = (f[f.length - 1].t - f[0].t) / 36e5; const d = f[0].fuel - f[f.length - 1].fuel; if (hrs > .2 && d > 0) rate = d / hrs; }
+  const hl = rate && L != null ? L / rate : null;
+  const low = (pct != null && pct < 15) || (hl != null && hl < s.site.lowFuelHours);
+  const gauge = pct == null ? '' : `
+    <svg width="84" height="150" viewBox="0 0 84 150" role="img" aria-label="Fuel tank level" style="flex:none">
+      <defs><clipPath id="clip"><rect x="3" y="3" width="78" height="144" rx="11"/></clipPath></defs>
+      <rect x="3" y="3" width="78" height="144" rx="11" fill="var(--tank)" stroke="var(--steel)" stroke-width="2"/>
+      <g clip-path="url(#clip)"><rect x="0" y="${147 - pct * 1.44}" width="84" height="${pct * 1.44}" fill="${low ? 'var(--low)' : 'var(--fuel)'}"/></g>
+      <g stroke="var(--steel)" stroke-width="1.5"><path d="M56 38h25M64 75h17M56 112h25"/></g>
+    </svg>`;
+  $('fuelbody').innerHTML = gauge + (L == null
+    ? `<div class="nofuel">No fuel reading. Check that DIESEL (LITERS) is in the FUEL TANK group.</div>`
+    : `<div><div class="big" style="${low ? 'color:var(--low)' : ''}">${fmt(L, dp('fuel_l'))}<small>litres</small></div>
+       <div class="sub">${pct != null ? fmt(pct, 0) + '% of ' + fmt(T) + ' L tank' : 'Tank size not set yet'}</div>
+       <div class="sub">Fuel counter ${fmt(v.fuel_counter, dp('fuel_counter'))}</div></div>`);
+  if (hl != null && hl < s.site.lowFuelHours) alerts.push(['bad', 'Low fuel', 'About ' + fmt(hl, 1) + ' hours left at the current use.']);
+  else if (pct != null && pct < 15) alerts.push(['bad', 'Low fuel', fmt(pct, 0) + '% left.']);
+  $('burn').textContent = rate ? fmt(rate, 1) : '--';
+  $('left').textContent = hl == null ? '--' : hl >= 48 ? Math.floor(hl / 24) + ' d ' + Math.round(hl % 24) + ' h' : Math.floor(hl) + ' h ' + Math.round(hl % 1 * 60) + ' m';
+
+  // mains (EDL)
+  const edl = v.edl;
+  $('mains').textContent = edl == null ? '--' : edl ? 'On' : 'Off';
+
+  // generators
+  const ratedKw = s.site.ratedKva ? s.site.ratedKva * 0.8 : null; let tot = 0, running = 0;
+  s.generators.forEach(g => {
+    const k = n => v[g.id + '.' + n], kw = k('kw'), st = k('status');
+    const on = st != null ? st === 1 : kw != null && kw > 1;
+    if (on) running++; if (kw != null) tot += kw;
+    $(g.id + '-kw').textContent = fmt(kw, dp('kw'));
+    $(g.id + '-tag').textContent = st == null && kw == null ? 'No data' : on ? 'Running' : 'Stopped';
+    $(g.id + '-tag').className = 'tag' + (on ? ' run' : '');
+    const load = kw == null || !ratedKw ? null : Math.min(100, kw / ratedKw * 100);
+    $(g.id + '-barwrap').style.display = load == null ? 'none' : '';
+    if (load != null) $(g.id + '-bar').style.width = load + '%';
+    $(g.id + '-load').textContent = !on ? 'Not producing power' : load != null ? Math.round(load) + '% of ' + fmt(ratedKw) + ' kW rated' : '';
+    [1, 2, 3].forEach(p => { $(g.id + '-v' + p).textContent = fmt(k('v' + p), 0); $(g.id + '-i' + p).textContent = fmt(k('i' + p), 1); });
+    $(g.id + '-freq').textContent = fmt(k('freq'), 1); $(g.id + '-hours').textContent = fmt(k('hours'), 0);
+    if (on) {
+      const vs = [1, 2, 3].map(p => k('v' + p)).filter(x => x != null), is = [1, 2, 3].map(p => k('i' + p)).filter(x => x != null);
+      if (vs.some(x => x < 207 || x > 253)) alerts.push(['warn', g.label + ' voltage out of range', 'Phase voltage outside 207 to 253 V.']);
+      if (k('freq') != null && Math.abs(k('freq') - 50) > 1.5) alerts.push(['warn', g.label + ' frequency off', fmt(k('freq'), 1) + ' Hz, expected 50.']);
+      if (is.length === 3) { const a = is.reduce((x, y) => x + y) / 3; if (a > 5 && Math.max(...is.map(x => Math.abs(x - a))) / a > 0.25) alerts.push(['warn', g.label + ' phases unbalanced', 'One phase differs more than 25% from the average current.']); }
+      if (load != null && load > 90) alerts.push(['warn', g.label + ' heavily loaded', Math.round(load) + '% of rated power.']);
+    }
+  });
+  $('totkw').textContent = fmt(tot, 1); $('totgens').textContent = running + ' of ' + s.generators.length;
+
+  $('alerts').innerHTML = (alerts.length ? alerts : [['okay', 'No alerts', 'Everything reported is within normal range.']])
+    .map(a => `<div class="alert ${a[0]}"><b>${a[1]}</b> ${a[2]}</div>`).join('');
+
+  // charts
+  line($('cFuel'), [{ pts: H.map(x => ({ t: x.t, v: x.fuel })), color: 'var(--fuel)' }], { min: 0, max: s.site.tankLitres || undefined });
+  $('cFuelA').textContent = H.length ? ago(H[0].t) : '';
+  const hi = line($('cKw'), s.generators.map((g, n) => ({ pts: H.map(x => ({ t: x.t, v: x[g.id] })), color: COL[n % 2] })), { min: 0 });
+  $('cKwA').textContent = H.length ? ago(H[0].t) : ''; $('cKwMax').textContent = hi ? 'scale to ' + fmt(hi) + ' kW' : '';
+
+  // details
+  $('details').innerHTML = Object.entries(s.site.details).map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')
+    + (T ? `<dt>Tank size</dt><dd>${fmt(T)} litres</dd>` : '') + (ratedKw ? `<dt>Rated power per generator</dt><dd>${fmt(s.site.ratedKva)} kVA (${fmt(ratedKw)} kW)</dd>` : '');
+  $('foot').textContent = 'Page refreshes every 5 seconds. Site refreshes FBox data every ' + s.pollSeconds + ' seconds.';
+}
+function setStatus(c, t) { $('status').className = 'status ' + c; $('statustext').textContent = t; }
+refresh(); setInterval(refresh, 5000);
+</script>
+</body>
+</html>
