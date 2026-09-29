@@ -25,8 +25,8 @@
   },
 
   "generators": [
-    { "id": "gen1", "label": "GEN 1", "group": "GEN 1", "status": { "name": "GEN 1 STATUS", "group": "PWR STATUS" }, "names": {} },
-    { "id": "gen2", "label": "GEN 2", "group": "GEN 2", "status": { "name": "GEN 2 STATUS", "group": "PWR STATUS" },
+    { "id": "gen1", "label": "GEN 1", "ratedKva": 350, "group": "GEN 1", "status": { "name": "GEN 1 STATUS", "group": "PWR STATUS" }, "names": {} },
+    { "id": "gen2", "label": "GEN 2", "ratedKva": 160, "group": "GEN 2", "status": { "name": "GEN 2 STATUS", "group": "PWR STATUS" },
       "names": { "i1": "Amp1", "i2": "Amp2", "i3": "Amp3", "kw": "TOTAL KW" } }
   ],
 
