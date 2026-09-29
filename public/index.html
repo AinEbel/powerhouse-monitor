@@ -3,72 +3,130 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
 <title>Power house monitor</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=Share+Tech+Mono&display=swap">
 <style>
-:root{
-  --bg:#e4e9ed; --panel:#f5f7f8; --ink:#16242d; --steel:#586b77; --line:#ccd4da; --tank:#dce3e8;
-  --fuel:#d59500; --low:#c0392b; --ok:#2a8657; --warn:#a86b00; --run:#2a8657; --g1:#1f5f8b; --g2:#7a4fa3;
-  font-family:"Barlow",system-ui,sans-serif; color:var(--ink);
-}
-@media (prefers-color-scheme:dark){
-  :root{--bg:#11181d;--panel:#1a242b;--ink:#e7eef2;--steel:#93a5b0;--line:#2b3a44;--tank:#22303a;--fuel:#f0b429;--low:#ef6a5b;--ok:#4cc38a;--warn:#e7a93b;--run:#4cc38a;--g1:#5eb0e8;--g2:#b892e0}
-}
+:root{--bg:#121518;--p1:#252c31;--p2:#1a2024;--ink:#e8edf0;--steel:#8d9aa3;--line:#38424a;--yellow:#ffc21a;--fuel:#ff9f1a;--low:#ff4d3d;--ok:#38d27a;--warn:#ffb020;--g1:#ffc21a;--g2:#3ec6ff;--lcd:#090c0e;
+  font-family:"Barlow",system-ui,sans-serif;color:var(--ink);color-scheme:dark}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);padding:16px;min-height:100vh}
+body{margin:0;padding:14px 14px 30px;min-height:100vh;background-color:var(--bg);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.02) 0 2px,transparent 2px 9px)}
 .wrap{max-width:1120px;margin:0 auto}
-h1,h2,.num,.big,th,.tag{font-family:"Barlow Semi Condensed","Arial Narrow",sans-serif}
-header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-h1{font-size:28px;font-weight:700;margin:0}
-.status{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--steel)}
-.dot{width:11px;height:11px;border-radius:50%;background:var(--steel);flex:none}
-.online .dot{background:var(--ok)} .offline .dot,.error .dot{background:var(--low)} .stale .dot{background:var(--warn)}
-.demo{background:var(--warn);color:#fff;padding:8px 14px;border-radius:4px;margin-bottom:12px;font-size:15px;display:none}
-.alerts{display:grid;gap:8px;margin-bottom:12px}
-.alert{border-left:5px solid var(--warn);background:var(--panel);padding:9px 14px;border-radius:4px;font-size:16px}
-.alert.bad{border-color:var(--low)} .alert b{font-weight:600}
-.alert.okay{border-color:var(--ok);color:var(--steel)}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px}
-h2{font-size:17px;font-weight:600;margin:0 0 12px;color:var(--steel)}
-.top{display:grid;grid-template-columns:minmax(300px,1.1fr) 1fr;gap:14px;margin-bottom:14px}
-.gens{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-@media(max-width:840px){.top,.gens{grid-template-columns:1fr}}
-.tankrow{display:flex;gap:20px;align-items:center}
-.big{font-size:60px;font-weight:700;line-height:.95;font-variant-numeric:tabular-nums}
-.big small{font-size:24px;font-weight:500;color:var(--steel);margin-left:4px}
-.sub{color:var(--steel);font-size:17px;margin-top:6px;font-variant-numeric:tabular-nums}
-.nofuel{color:var(--steel);font-size:16px;line-height:1.4;max-width:34ch}
-.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 20px;margin-top:2px}
-.kv b{display:block;font-family:"Barlow Semi Condensed",sans-serif;font-size:34px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.05}
-.kv span{font-size:14px;color:var(--steel)}
-.ghead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.ghead h2{margin:0;color:var(--ink);font-size:22px;font-weight:700}
-.tag{font-size:14px;font-weight:600;padding:3px 10px;border-radius:12px;background:var(--tank);color:var(--steel)}
-.tag.run{background:var(--run);color:#fff}
-.bar{height:10px;background:var(--tank);border-radius:2px;margin:12px 0 6px;overflow:hidden}
-.bar i{display:block;height:100%;width:0;transition:width .6s}
-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:19px;margin-top:10px}
-th,td{padding:7px 4px;text-align:right;border-bottom:1px solid var(--line)}
-th:first-child,td:first-child{text-align:left}
-th{font-weight:500;color:var(--steel);font-size:14px}
-.mini{display:flex;gap:26px;margin-top:12px;font-variant-numeric:tabular-nums}
-.mini b{font-family:"Barlow Semi Condensed",sans-serif;font-size:24px;font-weight:600}
-.mini span{display:block;font-size:13px;color:var(--steel)}
-.chart{width:100%;height:120px;display:block}
+h1,h2,.tag,th,.badge,.mono{font-family:"Barlow Condensed","Arial Narrow",sans-serif}
+.hazard{height:12px;border-radius:2px;margin-bottom:12px;background:repeating-linear-gradient(-45deg,#ffc21a 0 14px,#15181b 14px 28px)}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:14px}
+.brand svg{width:54px;height:54px;flex:none}
+h1{font-size:34px;font-weight:700;margin:0;text-transform:uppercase;letter-spacing:.05em;line-height:1}
+.tagline{font-family:"Barlow Condensed";letter-spacing:.14em;text-transform:uppercase;color:var(--steel);font-size:14px;margin-top:4px}
+.status{display:flex;align-items:center;gap:9px;font-size:15px;color:var(--steel);background:#0c0f11;border:1px solid #3a444b;padding:7px 12px;border-radius:3px}
+.dot{width:12px;height:12px;border-radius:50%;background:#4a555c;flex:none}
+.online .dot{background:var(--ok);box-shadow:0 0 9px var(--ok)}
+.offline .dot,.error .dot{background:var(--low);box-shadow:0 0 9px var(--low)}
+.stale .dot{background:var(--warn);box-shadow:0 0 9px var(--warn)}
+.demo{background:repeating-linear-gradient(-45deg,#ffc21a 0 16px,#e6ac00 16px 32px);color:#141414;font-weight:500;padding:9px 14px;border-radius:3px;margin-bottom:12px;font-size:15px;display:none}
+.alerts{display:grid;gap:8px;margin-bottom:14px}
+.alert{border-left:6px solid var(--warn);background:#1b2126;border-top:1px solid #333d44;border-bottom:1px solid #333d44;padding:9px 14px;font-size:16px}
+.alert.bad{border-left-color:var(--low);background:#2a1a19}
+.alert.okay{border-left-color:var(--ok);color:var(--steel)}
+.alert b{font-family:"Barlow Condensed";text-transform:uppercase;letter-spacing:.06em;font-size:17px;margin-right:6px}
+.panel{position:relative;border:1px solid #47525a;border-radius:4px;padding:18px 18px 16px;box-shadow:0 3px 0 #0a0c0e,inset 0 1px 0 rgba(255,255,255,.07);
+  background:
+   radial-gradient(circle at 9px 9px,#8b979f 0 1.6px,#2b3237 2.6px,transparent 3.6px),
+   radial-gradient(circle at calc(100% - 9px) 9px,#8b979f 0 1.6px,#2b3237 2.6px,transparent 3.6px),
+   radial-gradient(circle at 9px calc(100% - 9px),#8b979f 0 1.6px,#2b3237 2.6px,transparent 3.6px),
+   radial-gradient(circle at calc(100% - 9px) calc(100% - 9px),#8b979f 0 1.6px,#2b3237 2.6px,transparent 3.6px),
+   linear-gradient(180deg,var(--p1),var(--p2))}
+h2{font-size:17px;font-weight:600;margin:0 0 12px;color:var(--steel);text-transform:uppercase;letter-spacing:.12em;display:flex;align-items:center;gap:9px}
+h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
+.top{display:grid;grid-template-columns:minmax(320px,1.15fr) 1fr;gap:14px;margin-bottom:14px}
+.gens{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
 .charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-@media(max-width:840px){.charts{grid-template-columns:1fr}}
-.legend{display:flex;gap:16px;font-size:14px;color:var(--steel);margin-bottom:6px;flex-wrap:wrap}
-.legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:6px}
-.axis{display:flex;justify-content:space-between;font-size:12px;color:var(--steel)}
-dl{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:8px 24px;font-size:17px}
-dt{color:var(--steel)} dd{margin:0}
-footer{margin-top:12px;font-size:14px;color:var(--steel)}
+@media(max-width:840px){.top,.gens,.charts{grid-template-columns:1fr}h1{font-size:26px}}
+.lcd{display:inline-block;background:var(--lcd);border:2px solid #040506;box-shadow:inset 0 0 12px #000,0 1px 0 #3d484f;border-radius:3px;padding:8px 14px 6px}
+.big{font-family:"Share Tech Mono",monospace;color:var(--fuel);text-shadow:0 0 10px rgba(255,159,26,.45);font-size:54px;line-height:1;letter-spacing:.02em}
+.gens .big{color:var(--yellow);text-shadow:0 0 10px rgba(255,194,26,.4)}
+.lcd small{font-family:"Barlow Condensed";font-size:20px;color:var(--steel);margin-left:8px;letter-spacing:.06em;text-transform:uppercase}
+.sub{color:var(--steel);font-size:16px;margin-top:8px}
+.nofuel{color:var(--steel);font-size:16px;line-height:1.4;max-width:34ch}
+.tankrow{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.tankrow svg{width:250px;max-width:100%;flex:none}
+.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 16px}
+.kv>div{display:flex;gap:12px;align-items:center}
+.ic{width:42px;height:42px;flex:none;padding:8px;background:#0c0f11;border:1px solid #3a444b;border-radius:3px;stroke:var(--yellow);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.kv b{display:block;font-family:"Share Tech Mono",monospace;font-size:28px;font-weight:400;line-height:1.05}
+.kv span{font-size:13px;color:var(--steel);text-transform:uppercase;letter-spacing:.06em}
+.ghead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.ghead h2{margin:0;color:var(--ink);font-size:24px}
+.tag{display:inline-flex;align-items:center;gap:8px;font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 11px;border:1px solid #4a555c;background:#0c0f11;color:var(--steel);border-radius:3px}
+.tag::before{content:"";width:10px;height:10px;border-radius:50%;background:#4a555c}
+.tag.run{color:var(--ok);border-color:#1f6b45}
+.tag.run::before{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.photo{position:relative;border:1px solid #3a444b;border-radius:3px;margin-bottom:14px;overflow:hidden;background:linear-gradient(#333d44,#1b2126)}
+.photo svg{display:block;width:100%;height:auto}
+.photo img{display:none;width:100%;height:190px;object-fit:cover}
+.photo.has img{display:block}.photo.has svg{display:none}
+.badge{position:absolute;right:8px;top:8px;background:var(--yellow);color:#111;font-weight:700;font-size:14px;letter-spacing:.06em;padding:2px 9px;text-transform:uppercase}
+.bar{height:15px;background:var(--lcd);border:1px solid #040506;margin:14px 0 6px;position:relative;overflow:hidden}
+.bar i{display:block;height:100%;width:0;transition:width .6s}
+.bar::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 9px,var(--lcd) 9px 11px)}
+table{width:100%;border-collapse:collapse;font-size:20px;margin-top:10px}
+td{font-family:"Share Tech Mono",monospace}
+th,td{padding:6px 4px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:600;color:var(--steel);font-size:14px;letter-spacing:.12em;text-transform:uppercase}
+.ph{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:9px}
+.mini{display:flex;gap:14px;margin-top:14px}
+.mini>div{flex:1;background:var(--lcd);border:1px solid #040506;padding:8px 12px;box-shadow:inset 0 0 8px #000}
+.mini b{font-family:"Share Tech Mono",monospace;font-size:26px;font-weight:400;color:var(--ink)}
+.mini span{display:block;font-size:12px;color:var(--steel);text-transform:uppercase;letter-spacing:.1em}
+.chart{width:100%;height:130px;display:block;background:#0c1012;border:1px solid #2b353b;color:var(--steel)}
+.legend{display:flex;gap:16px;font-size:14px;color:var(--steel);margin-bottom:8px;flex-wrap:wrap;text-transform:uppercase;letter-spacing:.08em}
+.legend i{display:inline-block;width:16px;height:4px;vertical-align:middle;margin-right:6px}
+.axis{display:flex;justify-content:space-between;font-size:12px;color:var(--steel);margin-top:4px}
+dl{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:9px 26px;font-size:17px}
+dt{color:var(--steel);text-transform:uppercase;letter-spacing:.06em;font-size:14px;padding-top:2px} dd{margin:0}
+footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
+/* single-line diagram */
+.flowwrap{overflow-x:auto}.flow{width:100%;min-width:600px;height:auto;display:block}
+.flow text{font-family:"Barlow Condensed",sans-serif;fill:var(--ink);letter-spacing:.06em}
+.flow .k{fill:var(--steel);font-size:14px;text-transform:uppercase}
+.flow .v{font-family:"Share Tech Mono",monospace;font-size:18px;letter-spacing:0;fill:var(--yellow)}
+.wire{stroke:#3a444b;stroke-width:5;fill:none}
+.wire.live{stroke:var(--yellow);stroke-dasharray:9 7;animation:dash .55s linear infinite}
+.wire.live.mains{stroke:var(--ok)}
+@keyframes dash{to{stroke-dashoffset:-16}}
+.node{fill:#12171a;stroke:#4a555c;stroke-width:2}.node.on{stroke:var(--ok)}
+.bus{stroke:#6d7a83;stroke-width:9;stroke-linecap:round}
+/* generator drawing animation */
+.fan{transform-box:fill-box;transform-origin:center}
+.on .fan{animation:spin .45s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.smoke circle{opacity:0;transform-box:fill-box;transform-origin:center}
+.on .smoke circle{animation:rise 2.6s ease-out infinite}
+.smoke circle:nth-child(2){animation-delay:.85s!important}.smoke circle:nth-child(3){animation-delay:1.7s!important}
+@keyframes rise{0%{transform:translate(0,0) scale(.5);opacity:.6}100%{transform:translate(14px,-40px) scale(2.1);opacity:0}}
+.on .eng{animation:shake .13s linear infinite}
+@keyframes shake{50%{transform:translateY(.9px)}}
+.lamp{fill:#3a444b}.on .lamp{fill:var(--ok);filter:drop-shadow(0 0 4px var(--ok))}
+@media(prefers-reduced-motion:reduce){.on .fan,.on .smoke circle,.on .eng,.wire.live{animation:none}}
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 5 13.5h6L10 22l9-12.5h-6z"/></symbol>
+  <symbol id="i-gen" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 9.2A4.5 4.5 0 1 0 16 13h-4"/></symbol>
+  <symbol id="i-mains" viewBox="0 0 24 24"><path d="M12 2 6 22M12 2l6 20M8.5 9h7M7 15.5h10M8.5 9l7 6.5M15.5 9l-7 6.5"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.500 6-11 6-11z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.500 2"/></symbol>
+</svg>
 <div class="wrap">
+  <div class="hazard"></div>
   <header>
-    <h1 id="name">Power house</h1>
+    <div class="brand">
+      <svg viewBox="0 0 54 54" aria-hidden="true"><rect x="1" y="1" width="52" height="52" rx="4" fill="#0c0f11" stroke="#47525a" stroke-width="2"/><path d="M8 44V25l9 6v-6l9 6v-6l9 6V11h7v33z" fill="#ffc21a"/><path d="M27 33l-5 8h4l-1 5 6-8h-4l1-5z" fill="#15181b"/><rect x="39" y="6" width="7" height="6" fill="#8d9aa3"/></svg>
+      <div><h1 id="name">Power house</h1><div class="tagline">Generator plant monitor</div></div>
+    </div>
     <div class="status" id="status"><span class="dot"></span><span id="statustext">Connecting…</span></div>
   </header>
   <div class="demo" id="demo">Demo mode: these readings are simulated. Set "mode": "fbox" in config.json to show live data.</div>
@@ -76,20 +134,22 @@ footer{margin-top:12px;font-size:14px;color:var(--steel)}
 
   <div class="top">
     <section class="panel">
-      <h2>Fuel tank</h2>
+      <h2>Diesel storage</h2>
       <div class="tankrow" id="fuelbody"></div>
     </section>
     <section class="panel">
-      <h2>Site total</h2>
+      <h2>Plant total</h2>
       <div class="kv">
-        <div><b id="totkw">--</b><span>Power now (kW)</span></div>
-        <div><b id="totgens">--</b><span>Generators running</span></div>
-        <div><b id="mains">--</b><span>Mains (EDL)</span></div>
-        <div><b id="burn">--</b><span>Fuel use (L/h)</span></div>
-        <div style="grid-column:1/-1"><b id="left">--</b><span>Fuel left at this rate</span></div>
+        <div><svg class="ic"><use href="#i-bolt"/></svg><div><b id="totkw">--</b><span>Power now (kW)</span></div></div>
+        <div><svg class="ic"><use href="#i-gen"/></svg><div><b id="totgens">--</b><span>Generators running</span></div></div>
+        <div><svg class="ic"><use href="#i-mains"/></svg><div><b id="mains">--</b><span>Mains (EDL)</span></div></div>
+        <div><svg class="ic"><use href="#i-drop"/></svg><div><b id="burn">--</b><span>Fuel use (L/h)</span></div></div>
+        <div style="grid-column:1/-1"><svg class="ic"><use href="#i-clock"/></svg><div><b id="left">--</b><span>Fuel left at this rate</span></div></div>
       </div>
     </section>
   </div>
+
+  <section class="panel"><h2>Power flow</h2><div class="flowwrap"><svg class="flow" id="flow" viewBox="0 0 800 165"></svg></div></section>
 
   <div class="gens" id="gens"></div>
 
@@ -111,40 +171,105 @@ footer{margin-top:12px;font-size:14px;color:var(--steel)}
 const $ = id => document.getElementById(id);
 const fmt = (v, d = 0) => v == null || isNaN(v) ? '--' : Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const COL = ['var(--g1)', 'var(--g2)'];
+const PH = ['#d9452f', '#e6b800', '#3f83e0'];
 let built = false;
 
 function line(svg, series, opts) {           // series: [{pts:[{t,v}], color}]
   const all = series.flatMap(s => s.pts.filter(p => p.v != null));
-  if (all.length < 2) { svg.innerHTML = '<text x="200" y="64" text-anchor="middle" fill="currentColor" font-size="12" opacity=".5">Collecting data…</text>'; return; }
+  if (all.length < 2) { svg.innerHTML = '<text x="200" y="64" text-anchor="middle" fill="currentColor" font-size="12" opacity=".6">Collecting data…</text>'; return; }
   const t0 = Math.min(...all.map(p => p.t)), t1 = Math.max(...all.map(p => p.t));
   const lo = opts.min ?? Math.min(...all.map(p => p.v));
   const hi = opts.max ?? Math.max(10, ...all.map(p => p.v)) * 1.1;
   const y = v => 112 - (v - lo) / ((hi - lo) || 1) * 104, x = t => (t - t0) / ((t1 - t0) || 1) * 400;
   let g = '';
-  for (let i = 0; i <= 4; i++) g += '<path d="M0 ' + (8 + i * 26) + 'H400" stroke="var(--line)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+  for (let i = 0; i <= 4; i++) g += '<path d="M0 ' + (8 + i * 26) + 'H400" stroke="#26313a" stroke-width="1" vector-effect="non-scaling-stroke"/>';
   series.forEach(s => {
     const p = s.pts.filter(q => q.v != null);
-    if (p.length > 1) g += '<path d="' + p.map((q, i) => (i ? 'L' : 'M') + x(q.t).toFixed(1) + ' ' + y(q.v).toFixed(1)).join('') + '" fill="none" stroke="' + s.color + '" stroke-width="2.2" vector-effect="non-scaling-stroke"/>';
+    if (p.length > 1) g += '<path d="' + p.map((q, i) => (i ? 'L' : 'M') + x(q.t).toFixed(1) + ' ' + y(q.v).toFixed(1)).join('') + '" fill="none" stroke="' + s.color + '" stroke-width="2.4" vector-effect="non-scaling-stroke"/>';
   });
   svg.innerHTML = g; return hi;
 }
 const ago = t => { const h = (Date.now() - t) / 36e5; return h >= 1 ? Math.round(h) + ' h ago' : Math.max(1, Math.round(h * 60)) + ' min ago'; };
 
+// Generator set drawing (engine, alternator, radiator fan, exhaust). Animates while running.
+const gensetSvg = g => `
+<svg id="${g.id}-svg" class="gset" viewBox="0 0 300 140" role="img" aria-label="${g.label} generator set">
+  <rect x="0" y="122" width="300" height="18" fill="#22282c"/><path d="M0 122h300" stroke="#4a555c" stroke-width="2"/>
+  <g stroke="#0d1012" stroke-width="1"><path d="M0 131h300" opacity=".5"/></g>
+  <rect x="12" y="106" width="276" height="10" rx="2" fill="#2f383e" stroke="#59646c"/>
+  <rect x="24" y="116" width="18" height="6" fill="#1a1f22"/><rect x="258" y="116" width="18" height="6" fill="#1a1f22"/>
+  <g class="eng">
+    <rect x="18" y="56" width="72" height="50" rx="7" fill="#3f6f8f" stroke="#28485d" stroke-width="2"/>
+    <path d="M32 58v46M44 58v46M56 58v46M68 58v46M80 58v46" stroke="#2f5670" stroke-width="2"/>
+    <path d="M52 68l-9 14h7l-2 11 12-16h-7l3-9z" fill="#ffc21a" transform="translate(10 -2)"/>
+    <rect x="90" y="66" width="14" height="30" fill="#59646c"/>
+    <rect x="102" y="46" width="112" height="60" rx="4" fill="#ffc21a" stroke="#b68600" stroke-width="2"/>
+    <rect x="112" y="34" width="92" height="14" rx="2" fill="#d99f00" stroke="#8f6a00"/>
+    <path d="M124 34v14M138 34v14M152 34v14M166 34v14M180 34v14M194 34v14" stroke="#8f6a00" stroke-width="1.5"/>
+    <rect x="112" y="60" width="92" height="26" rx="2" fill="#16191b"/>
+    <text x="158" y="80" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="21" letter-spacing="2" fill="#ffc21a">${g.label}</text>
+    <circle cx="122" cy="98" r="3.500" fill="#8f6a00"/><circle cx="194" cy="98" r="3.500" fill="#8f6a00"/>
+    <rect x="214" y="40" width="70" height="66" rx="3" fill="#2a3237" stroke="#59646c" stroke-width="2"/>
+    <path d="M220 48h58M220 98h58" stroke="#3b464d" stroke-width="2"/>
+    <circle cx="249" cy="73" r="26" fill="#0d1012" stroke="#59646c" stroke-width="2"/>
+    <g class="fan" fill="#8d9aa3"><ellipse cx="249" cy="59" rx="6" ry="13"/><ellipse cx="249" cy="59" rx="6" ry="13" transform="rotate(90 249 73)"/><ellipse cx="249" cy="59" rx="6" ry="13" transform="rotate(180 249 73)"/><ellipse cx="249" cy="59" rx="6" ry="13" transform="rotate(270 249 73)"/></g>
+    <circle cx="249" cy="73" r="4.500" fill="#59646c"/>
+  </g>
+  <rect x="170" y="10" width="9" height="26" fill="#59646c"/><rect x="167" y="7" width="15" height="5" rx="1" fill="#6d7a83"/>
+  <g class="smoke" fill="#a8b3ba"><circle cx="174" cy="6" r="5"/><circle cx="174" cy="6" r="5"/><circle cx="174" cy="6" r="5"/></g>
+  <circle class="lamp" cx="18" cy="22" r="6" stroke="#0d1012" stroke-width="2"/>
+  <path d="M262 8h16l-8 14z" fill="#ffc21a" transform="translate(-224 4)"/>
+</svg>`;
+
 function build(s) {
   $('gens').innerHTML = s.generators.map((g, n) => `
     <section class="panel">
       <div class="ghead"><h2>${g.label}</h2><span class="tag" id="${g.id}-tag">--</span></div>
-      <div class="big"><span id="${g.id}-kw">--</span><small>kW</small></div>
+      <div class="photo" id="${g.id}-photo">${gensetSvg(g)}<img src="photos/${g.id}.jpg" alt="${g.label} generator" onload="this.parentNode.classList.add('has')" onerror="this.remove()">${g.ratedKva ? `<span class="badge">${fmt(g.ratedKva)} kVA</span>` : ''}</div>
+      <div class="lcd"><span class="big" id="${g.id}-kw">--</span><small>kW</small></div>
       <div class="bar" id="${g.id}-barwrap"><i id="${g.id}-bar" style="background:${COL[n % 2]}"></i></div>
-      <div class="sub" id="${g.id}-load"></div>
+      <div class="sub" id="${g.id}-load" style="margin-top:0"></div>
       <table><thead><tr><th></th><th>Volts</th><th>Amps</th></tr></thead><tbody>
-        ${[1, 2, 3].map(p => `<tr><td>L${p}</td><td id="${g.id}-v${p}">--</td><td id="${g.id}-i${p}">--</td></tr>`).join('')}
+        ${[1, 2, 3].map(p => `<tr><td><i class="ph" style="background:${PH[p - 1]}"></i>L${p}</td><td id="${g.id}-v${p}">--</td><td id="${g.id}-i${p}">--</td></tr>`).join('')}
       </tbody></table>
       <div class="mini"><div><b id="${g.id}-freq">--</b><span>Hz</span></div><div><b id="${g.id}-hours">--</b><span>Engine hours</span></div></div>
     </section>`).join('');
   $('pLegend').innerHTML = s.generators.map((g, n) => `<span><i style="background:${COL[n % 2]}"></i>${g.label}</span>`).join('');
+  // single-line power flow: mains -> busbar -> load, generators feed the busbar from below
+  const n = s.generators.length, gx = i => 190 + (i + 1) * 420 / (n + 1);
+  $('flow').innerHTML = `
+    <path id="pfl-edl" class="wire" d="M150 45H190"/><path id="pfl-load" class="wire" d="M610 45H650"/>
+    <path class="bus" d="M190 45H610"/>
+    <rect class="node" x="10" y="12" width="140" height="66" rx="3"/>
+    <g stroke="#ffc21a" stroke-width="2" fill="none" stroke-linecap="round"><path d="M38 20 27 72M38 20l11 52M31 34h14M29 47h18M31 34l14 13M45 34 31 47"/></g>
+    <text class="k" x="62" y="38">EDL mains</text><text class="v" id="pf-edl" x="62" y="62">--</text>
+    <rect class="node" x="650" y="12" width="140" height="66" rx="3"/>
+    <path d="M672 22 664 46h9l-3 22 15-28h-9l4-18z" fill="#ffc21a"/>
+    <text class="k" x="694" y="38">Site load</text><text class="v" id="pf-load" x="694" y="62">--</text>
+    ${s.generators.map((g, i) => `
+    <path id="pfl-${g.id}" class="wire" d="M${gx(i)} 49V100"/>
+    <rect id="pfb-${g.id}" class="node" x="${gx(i) - 66}" y="100" width="132" height="58" rx="3"/>
+    <circle cx="${gx(i) - 40}" cy="129" r="17" fill="none" stroke="#ffc21a" stroke-width="2.4"/>
+    <text x="${gx(i) - 40}" y="136" text-anchor="middle" style="font-size:21px;font-weight:700;fill:#ffc21a">G</text>
+    <text class="k" x="${gx(i) - 15}" y="123">${g.label}</text><text class="v" id="pf-${g.id}" x="${gx(i) - 15}" y="146" style="font-size:16px">--</text>`).join('')}`;
   built = true;
 }
+
+const tankSvg = (pct, low, T) => `
+<svg viewBox="0 0 260 160" role="img" aria-label="Diesel tank level">
+  <defs><clipPath id="tk"><rect x="18" y="34" width="200" height="86" rx="43"/></clipPath></defs>
+  <path d="M52 118l-8 34h30l-4-34zM170 118l-4 34h30l-8-34z" fill="#2f383e" stroke="#59646c" stroke-width="2"/>
+  <path d="M0 152h260" stroke="#4a555c" stroke-width="3"/>
+  <rect x="103" y="18" width="30" height="16" fill="#59646c" stroke="#3a444b"/><rect x="99" y="14" width="38" height="6" rx="2" fill="#8d9aa3"/>
+  <path d="M218 96h26v8h-26z" fill="#59646c"/><circle cx="246" cy="100" r="8" fill="#ffc21a" stroke="#8f6a00" stroke-width="2"/>
+  <rect x="18" y="34" width="200" height="86" rx="43" fill="#1a2024" stroke="#8d9aa3" stroke-width="3"/>
+  <g clip-path="url(#tk)"><rect x="0" y="${120 - pct * 0.86}" width="240" height="${pct * 0.86 + 2}" fill="${low ? 'var(--low)' : 'var(--fuel)'}" opacity=".92"/>
+    <path d="M78 34v86M138 34v86M198 34v86" stroke="#0d1012" stroke-width="3" opacity=".55"/>
+    <rect x="18" y="38" width="200" height="8" fill="#fff" opacity=".13"/></g>
+  <text x="118" y="70" text-anchor="middle" style="font-family:'Barlow Condensed';font-size:13px;letter-spacing:.2em;fill:#fff;opacity:.85">DIESEL</text>
+  <text x="118" y="103" text-anchor="middle" style="font-family:'Share Tech Mono';font-size:30px;fill:#fff;paint-order:stroke;stroke:#000;stroke-width:4px">${fmt(pct, 0)}%</text>
+  <g font-family="Barlow Condensed" font-size="12" fill="#8d9aa3"><text x="232" y="48">F</text><text x="232" y="86">&#189;</text><text x="232" y="122">E</text></g>
+</svg>`;
 
 async function refresh() {
   let s;
@@ -172,16 +297,9 @@ async function refresh() {
   if (f.length > 8) { const hrs = (f[f.length - 1].t - f[0].t) / 36e5; const d = f[0].fuel - f[f.length - 1].fuel; if (hrs > .2 && d > 0) rate = d / hrs; }
   const hl = rate && L != null ? L / rate : null;
   const low = (pct != null && pct < 15) || (hl != null && hl < s.site.lowFuelHours);
-  const gauge = pct == null ? '' : `
-    <svg width="84" height="150" viewBox="0 0 84 150" role="img" aria-label="Fuel tank level" style="flex:none">
-      <defs><clipPath id="clip"><rect x="3" y="3" width="78" height="144" rx="11"/></clipPath></defs>
-      <rect x="3" y="3" width="78" height="144" rx="11" fill="var(--tank)" stroke="var(--steel)" stroke-width="2"/>
-      <g clip-path="url(#clip)"><rect x="0" y="${147 - pct * 1.44}" width="84" height="${pct * 1.44}" fill="${low ? 'var(--low)' : 'var(--fuel)'}"/></g>
-      <g stroke="var(--steel)" stroke-width="1.5"><path d="M56 38h25M64 75h17M56 112h25"/></g>
-    </svg>`;
-  $('fuelbody').innerHTML = gauge + (L == null
+  $('fuelbody').innerHTML = (pct == null ? '' : tankSvg(pct, low, T)) + (L == null
     ? `<div class="nofuel">No fuel reading. Check that DIESEL (LITERS) is in the FUEL TANK group.</div>`
-    : `<div><div class="big" style="${low ? 'color:var(--low)' : ''}">${fmt(L, dp('fuel_l'))}<small>litres</small></div>
+    : `<div><div class="lcd"><span class="big" style="${low ? 'color:var(--low);text-shadow:0 0 10px rgba(255,77,61,.5)' : ''}">${fmt(L, dp('fuel_l'))}</span><small>litres</small></div>
        <div class="sub">${pct != null ? fmt(pct, 0) + '% of ' + fmt(T) + ' L tank' : 'Tank size not set yet'}</div>
        <div class="sub">Fuel counter ${fmt(v.fuel_counter, dp('fuel_counter'))}</div></div>`);
   if (hl != null && hl < s.site.lowFuelHours) alerts.push(['bad', 'Low fuel', 'About ' + fmt(hl, 1) + ' hours left at the current use.']);
@@ -192,6 +310,8 @@ async function refresh() {
   // mains (EDL)
   const edl = v.edl;
   $('mains').textContent = edl == null ? '--' : edl ? 'On' : 'Off';
+  const wire = (id, live, extra) => { const e = $(id); if (e) e.setAttribute('class', 'wire' + (live ? ' live' + (extra || '') : '')); };
+  wire('pfl-edl', edl === 1, ' mains'); $('pf-edl').textContent = edl == null ? '--' : edl ? 'ON' : 'OFF';
 
   // generators
   let tot = 0, running = 0;
@@ -199,10 +319,14 @@ async function refresh() {
     const k = n => v[g.id + '.' + n], kw = k('kw'), st = k('status');
     const on = st != null ? st === 1 : kw != null && kw > 1;
     if (on) running++; if (kw != null) tot += kw;
+    $(g.id + '-svg').setAttribute('class', 'gset' + (on ? ' on' : ''));
+    wire('pfl-' + g.id, on); $('pfb-' + g.id).setAttribute('class', 'node' + (on ? ' on' : ''));
+    $('pf-' + g.id).textContent = !on ? 'STOPPED' : fmt(kw, 0) + ' kW';
     $(g.id + '-kw').textContent = fmt(kw, dp('kw'));
     $(g.id + '-tag').textContent = st == null && kw == null ? 'No data' : on ? 'Running' : 'Stopped';
     $(g.id + '-tag').className = 'tag' + (on ? ' run' : '');
-    const ratedKw = g.ratedKva ? g.ratedKva * 0.8 : null; const load = kw == null || !ratedKw ? null : Math.min(100, kw / ratedKw * 100);
+    const ratedKw = g.ratedKva ? g.ratedKva * 0.8 : null;
+    const load = kw == null || !ratedKw ? null : Math.min(100, kw / ratedKw * 100);
     $(g.id + '-barwrap').style.display = load == null ? 'none' : '';
     if (load != null) $(g.id + '-bar').style.width = load + '%';
     $(g.id + '-load').textContent = !on ? 'Not producing power' : load != null ? Math.round(load) + '% of ' + fmt(ratedKw) + ' kW rated' : '';
@@ -217,6 +341,7 @@ async function refresh() {
     }
   });
   $('totkw').textContent = fmt(tot, 1); $('totgens').textContent = running + ' of ' + s.generators.length;
+  wire('pfl-load', tot > 1); $('pf-load').textContent = fmt(tot, 1) + ' kW';
 
   $('alerts').innerHTML = (alerts.length ? alerts : [['okay', 'No alerts', 'Everything reported is within normal range.']])
     .map(a => `<div class="alert ${a[0]}"><b>${a[1]}</b> ${a[2]}</div>`).join('');
@@ -229,8 +354,8 @@ async function refresh() {
 
   // details
   $('details').innerHTML = Object.entries(s.site.details).map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')
-    + (T ? `<dt>Tank size</dt><dd>${fmt(T)} litres</dd>` : '') + s.generators.filter(x => x.ratedKva).map(x => `<dt>${x.label} rating</dt><dd>${fmt(x.ratedKva)} kVA (${fmt(x.ratedKva*0.8)} kW)</dd>`).join('');
-  $('foot').textContent = 'Page refreshes every 5 seconds. Site refreshes FBox data every ' + s.pollSeconds + ' seconds.';
+    + (T ? `<dt>Tank size</dt><dd>${fmt(T)} litres</dd>` : '') + s.generators.filter(x => x.ratedKva).map(x => `<dt>${x.label} rating</dt><dd>${fmt(x.ratedKva)} kVA (${fmt(x.ratedKva * 0.8)} kW)</dd>`).join('');
+  $('foot').textContent = 'Page refreshes every 5 seconds. Plant data refreshes from the FBox every ' + s.pollSeconds + ' seconds.';
 }
 function setStatus(c, t) { $('status').className = 'status ' + c; $('statustext').textContent = t; }
 refresh(); setInterval(refresh, 5000);
