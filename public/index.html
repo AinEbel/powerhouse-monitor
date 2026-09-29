@@ -194,7 +194,7 @@ async function refresh() {
   $('mains').textContent = edl == null ? '--' : edl ? 'On' : 'Off';
 
   // generators
-  const ratedKw = s.site.ratedKva ? s.site.ratedKva * 0.8 : null; let tot = 0, running = 0;
+  let tot = 0, running = 0;
   s.generators.forEach(g => {
     const k = n => v[g.id + '.' + n], kw = k('kw'), st = k('status');
     const on = st != null ? st === 1 : kw != null && kw > 1;
@@ -202,7 +202,7 @@ async function refresh() {
     $(g.id + '-kw').textContent = fmt(kw, dp('kw'));
     $(g.id + '-tag').textContent = st == null && kw == null ? 'No data' : on ? 'Running' : 'Stopped';
     $(g.id + '-tag').className = 'tag' + (on ? ' run' : '');
-    const load = kw == null || !ratedKw ? null : Math.min(100, kw / ratedKw * 100);
+    const ratedKw = g.ratedKva ? g.ratedKva * 0.8 : null; const load = kw == null || !ratedKw ? null : Math.min(100, kw / ratedKw * 100);
     $(g.id + '-barwrap').style.display = load == null ? 'none' : '';
     if (load != null) $(g.id + '-bar').style.width = load + '%';
     $(g.id + '-load').textContent = !on ? 'Not producing power' : load != null ? Math.round(load) + '% of ' + fmt(ratedKw) + ' kW rated' : '';
@@ -229,7 +229,7 @@ async function refresh() {
 
   // details
   $('details').innerHTML = Object.entries(s.site.details).map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')
-    + (T ? `<dt>Tank size</dt><dd>${fmt(T)} litres</dd>` : '') + (ratedKw ? `<dt>Rated power per generator</dt><dd>${fmt(s.site.ratedKva)} kVA (${fmt(ratedKw)} kW)</dd>` : '');
+    + (T ? `<dt>Tank size</dt><dd>${fmt(T)} litres</dd>` : '') + s.generators.filter(x => x.ratedKva).map(x => `<dt>${x.label} rating</dt><dd>${fmt(x.ratedKva)} kVA (${fmt(x.ratedKva*0.8)} kW)</dd>`).join('');
   $('foot').textContent = 'Page refreshes every 5 seconds. Site refreshes FBox data every ' + s.pollSeconds + ' seconds.';
 }
 function setStatus(c, t) { $('status').className = 'status ' + c; $('statustext').textContent = t; }
