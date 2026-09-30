@@ -49,7 +49,7 @@ const gens = cfg.generators;
 // Every point that will be read, with the FBox variable name and group it lives in.
 const allPoints = [];
 for (const g of gens) {
-  for (const p of cfg.points) allPoints.push({ key: g.id + '.' + p.key, name: (g.names || {})[p.key] || p.name, group: g.group });
+  for (const p of cfg.points) allPoints.push({ key: g.id + '.' + p.key, name: (g.names || {})[p.key] || p.name, group: g.group, div: p.div || 1 });
   if (g.status) allPoints.push({ key: g.id + '.status', name: g.status.name, group: g.status.group });
 }
 for (const p of cfg.shared || []) allPoints.push(p);
@@ -108,7 +108,7 @@ async function readFBox() {
     if (rows[0] && rows[0].connState === 1) conn = 'online';
     for (const p of pts) {
       const row = rows.find(x => x.name === p.name);
-      if (row && row.status === 0 && row.value !== null && row.value !== '') values[p.key] = num(row.value);
+      if (row && row.status === 0 && row.value !== null && row.value !== '') values[p.key] = num(row.value) / (p.div || 1);     // the API sends 1 decimal place as a whole number (2364 = 236.4)
     }
   }
   if (!Object.keys(values).length && firstErr) throw new Error(firstErr);
