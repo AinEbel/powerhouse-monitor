@@ -567,9 +567,9 @@ async function loadFuelLog() {
   const dur = s => s >= 3600 ? Math.floor(s / 3600) + 'h ' + String(Math.round(s % 3600 / 60)).padStart(2, '0') + 'm' : s >= 60 ? Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's' : s + 's';
   $('flvl').textContent = d.level == null ? '--' : fmt(d.level, 1);
   const last = L[0], rates = L.slice(0, 20).map(r => r.lph).filter(x => x != null), avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null;
-  $('fsum').innerHTML = L.length ? `<div><b>${fdt(last.t)}</b><span>Last drop, -${fmt(last.drop, 1)} L</span></div><div><b>${fmt(d.total)}</b><span>Litres logged</span></div><div><b>${avg == null ? '--' : fmt(avg, 1) + ' L/h'}</b><span>Average of last ${rates.length} lines</span></div>` : '';
-  $('flogt').innerHTML = L.length ? '<thead><tr><th>Date and time</th><th>Tank level</th><th>Dropped</th><th>Time for this drop</th><th>Rate</th><th>Load</th></tr></thead><tbody>' +
-    L.map((r, i) => `<tr class="${i ? '' : 'new'}"><td>${fdt(r.t)}<small>${tm(r.t)}</small></td><td>${fmt(r.level, 1)} L</td><td class="add">-${fmt(r.drop, 1)} L</td><td>${dur(r.secs)}</td><td>${r.lph == null ? '--' : fmt(r.lph, 1) + ' L/h'}</td><td>${fmt(r.kw, 1)} kW</td></tr>`).join('') + '</tbody>'
+  $('fsum').innerHTML = L.length ? `<div><b>${fdt(last.t)}</b><span>Last drop, -${fmt(last.drop, 1)} L</span></div><div><b>${fmt(d.total)}</b><span>Litres logged</span></div>` : '';
+  $('flogt').innerHTML = L.length ? '<thead><tr><th>Date and time</th><th>Tank level</th><th>Dropped</th><th>Load</th></tr></thead><tbody>' +
+    L.map((r, i) => `<tr class="${i ? '' : 'new'}"><td>${fdt(r.t)}<small>${tm(r.t)}</small></td><td>${fmt(r.level, 1)} L</td><td class="add">-${fmt(r.drop, 1)} L</td><td>${fmt(r.kw, 1)} kW</td></tr>`).join('') + '</tbody>'
     : '<tbody><tr><td style="text-align:left;color:var(--steel);font-family:Barlow,sans-serif;font-size:16px">No line yet. One is added each time the tank level falls by 1 litre.</td></tr></tbody>';
   $('fnote').textContent = 'Logging since ' + fdt(d.since) + '. When the level goes up (refuelling) the log starts again from the new highest level. Showing the latest 300 lines; Download CSV has everything kept on the server.';
 }
