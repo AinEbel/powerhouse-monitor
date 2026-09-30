@@ -203,10 +203,12 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
   </div>
 
   <section class="panel" id="flog" style="margin-bottom:14px">
-    <div class="chead"><h2>Fuel level log</h2><a class="btn" href="/api/fuellog.csv">Download CSV</a></div>
+    <div class="chead"><h2>Fuel level log</h2><span style="display:flex;gap:8px"><button class="btn" id="fltog" type="button" style="border:0;cursor:pointer">Open log</button><a class="btn" href="/api/fuellog.csv">Download CSV</a></span></div>
+    <div id="flbody" style="display:none">
     <div class="rtop"><div class="lcd"><span class="big" id="flvl">--</span><small>litres now</small></div><div class="rsum" id="fsum"></div></div>
     <div class="tscroll"><table class="rlog" id="flogt"></table></div>
     <div class="sub" id="fnote"></div>
+    </div>
   </section>
   <section class="panel" id="refuel" style="margin-bottom:14px">
     <div class="chead"><h2>Refuelling log</h2><a class="btn" href="/api/refuels.csv">Download CSV</a></div>
@@ -571,7 +573,8 @@ async function loadFuelLog() {
     : '<tbody><tr><td style="text-align:left;color:var(--steel);font-family:Barlow,sans-serif;font-size:16px">No line yet. One is added each time the tank level falls by 1 litre.</td></tr></tbody>';
   $('fnote').textContent = 'Logging since ' + fdt(d.since) + '. When the level goes up (refuelling) the log starts again from the new highest level. Showing the latest 300 lines; Download CSV has everything kept on the server.';
 }
-loadFuelLog(); setInterval(loadFuelLog, 15000);
+$('fltog').onclick = () => { const b = $('flbody'), open = b.style.display === 'none'; b.style.display = open ? 'block' : 'none'; $('fltog').textContent = open ? 'Close log' : 'Open log'; if (open) loadFuelLog(); };
+setInterval(() => { if ($('flbody').style.display !== 'none') loadFuelLog(); }, 15000);
 
 function setStatus(c, t) { $('status').className = 'status ' + c; $('statustext').textContent = t; }
 refresh(); setInterval(refresh, 5000);
