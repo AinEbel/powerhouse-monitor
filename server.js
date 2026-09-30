@@ -44,6 +44,24 @@ function trackRefuel(v) {
   if (openR) { openR.levelAfter = L ?? openR.levelAfter; if (now - openR.end > REFUEL_GAP) closeRefuel(L); }
   else lastLevel = L;
 }
+// ---- fuel level log: one line every time the tank level falls by 1 litre (the baseline follows the level up, so a refuel restarts from the new highest level) ----
+const FUELLOG_FILE = path.join(__dirname, 'fuellog.json');
+let fuelLog = [], fuelBase = null, fuelBaseT = null, fuelCur = null;
+try { fuelLog = JSON.parse(fs.readFileSync(FUELLOG_FILE, 'utf8')); } catch (_) {}
+function trackFuelLevel(v) {
+  const L = v.fuel_l, now = Date.now();
+  if (L == null || !isFinite(L)) return;
+  fuelCur = L;
+  if (fuelBase == null) { fuelBase = L; fuelBaseT = now; return; }
+  if (L > fuelBase) { if (L - fuelBase >= 5) fuelBaseT = now; fuelBase = L; return; }     // level went up (refuelling): start again from the highest number
+  if (fuelBase - L >= 1) {
+    const drop = +(fuelBase - L).toFixed(1), mins = (now - fuelBaseT) / 60000;
+    const kw = gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0);
+    fuelLog.push({ t: now, level: +L.toFixed(1), drop, secs: Math.round((now - fuelBaseT) / 1000), lph: mins > 0 ? +(drop / mins * 60).toFixed(1) : null, kw: +kw.toFixed(1) });
+    fuelLog = fuelLog.slice(-5000); fs.writeFile(FUELLOG_FILE, JSON.stringify(fuelLog), () => {});
+    fuelBase = L; fuelBaseT = now;
+  }
+}
 const gens = cfg.generators;
 
 // Every point that will be read, with the FBox variable name and group it lives in.
@@ -161,7 +179,7 @@ async function poll() {
       if (values[h] != null) values[h] += (values[g.id + '.min'] || 0) / 60 + (values[g.id + '.sec'] || 0) / 3600;
     });
     state = { conn, updated: Date.now(), values, error: null };
-    trackRefuel(values);
+    trackRefuel(values); trackFuelLevel(values);
     const last = history[history.length - 1];
     if (!last || Date.now() - last.t >= 60000) {
       const pt = { t: Date.now(), fuel: values.fuel_l ?? null };
@@ -205,6 +223,16 @@ http.createServer((req, res) => {
     }
   }
   const url = req.url.split('?')[0];
+  if (url === '/api/fuellog' || url === '/api/fuellog.csv') {
+    const list = [...fuelLog].reverse();
+    if (url.endsWith('.csv')) {
+      const f = t => new Date(t + 3 * 3600000).toISOString().slice(0, 19).replace('T', ' ');   // Lebanon time
+      res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="fuel-level-log.csv"' });
+      return res.end(['Date and time,Tank level (L),Dropped (L),Seconds since previous,Rate (L/h),Load (kW)', ...list.map(r => [f(r.t), r.level, r.drop, r.secs, r.lph ?? '', r.kw].join(','))].join('\r\n') + '\r\n');
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({ now: Date.now(), since: trackStart, level: fuelCur, base: fuelBase, total: fuelLog.length, list: list.slice(0, 300) }));
+  }
   if (url === '/api/refuels' || url === '/api/refuels.csv') {
     const list = [...refuels].reverse();
     if (url.endsWith('.csv')) {
