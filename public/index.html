@@ -170,7 +170,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
         <div><svg class="ic"><use href="#i-bolt"/></svg><div><b id="totkw">--</b><span>Power now (kW)</span></div></div>
         <div><svg class="ic"><use href="#i-gen"/></svg><div><b id="totgens">--</b><span>Generators running</span></div></div>
         <div><svg class="ic"><use href="#i-mains"/></svg><div><b id="mains">--</b><span>Mains (EDL)</span></div></div>
-        <div><svg class="ic"><use href="#i-drop"/></svg><div><b id="burn">--</b><span>Fuel use (L/h)</span></div></div>
+        <div><svg class="ic"><use href="#i-drop"/></svg><div><b id="burn">--</b><span>Fuel use (L/h) = kW × 0.278</span></div></div>
         <div><svg class="ic"><use href="#i-clock"/></svg><div><b id="left">--</b><span>Fuel left at this rate</span></div></div>
         <div><svg class="ic"><use href="#i-bolt"/></svg><div><b id="totkva">--</b><span>Apparent power (kVA)</span></div></div>
         <div><svg class="ic"><use href="#i-gen"/></svg><div><b id="totpf">--</b><span>Power factor</span></div></div>
@@ -338,8 +338,10 @@ async function refresh() {
   const L = v.fuel_l, T = s.site.tankLitres, H = s.history;
   const pct = L != null && T ? Math.max(0, Math.min(100, L / T * 100)) : null;
   const f = H.filter(x => x.fuel != null && x.t > Date.now() - 3 * 36e5);
-  let rate = null;
-  if (f.length > 8) { const hrs = (f[f.length - 1].t - f[0].t) / 36e5; const d = f[0].fuel - f[f.length - 1].fuel; if (hrs > .2 && d > 0) rate = d / hrs; }
+  // fuel use by formula: 0.278 litres per hour for every kW of load
+  const LPKW = 0.278;
+  const loadKw = GENS.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0);
+  const rate = loadKw > 0 ? loadKw * LPKW : null;
   const hl = rate && L != null ? L / rate : null;
   const low = (pct != null && pct < 15) || (hl != null && hl < s.site.lowFuelHours);
   $('fuelbody').innerHTML = (pct == null ? '' : tankSvg(pct, low, T)) + (L == null
@@ -349,7 +351,7 @@ async function refresh() {
        <div class="sub">Fuel counter ${fmt(v.fuel_counter, dp('fuel_counter'))}</div></div>`);
   if (hl != null && hl < s.site.lowFuelHours) alerts.push(['bad', 'Low fuel', 'About ' + fmt(hl, 1) + ' hours left at the current use.']);
   else if (pct != null && pct < 15) alerts.push(['bad', 'Low fuel', fmt(pct, 0) + '% left.']);
-  $('burn').textContent = rate ? fmt(rate, 1) : '--';
+  $('burn').textContent = rate ? fmt(rate, 1) : '0';
   $('left').textContent = hl == null ? '--' : hl >= 48 ? Math.floor(hl / 24) + ' d ' + Math.round(hl % 24) + ' h' : Math.floor(hl) + ' h ' + Math.round(hl % 1 * 60) + ' m';
 
   // mains (EDL)
@@ -527,9 +529,9 @@ function drawTrends() {
     chart('cFuel', [{ label: 'Diesel', color: 'var(--fuel)', pts: P.map(p => ({ t: p.t, v: p.fuel })) }], { unit: 'L', d: 0, tick: 0 });
     statsTable('sFuel', [{ label: 'Level', unit: 'L', d: 0, ...(HD.stats.fuel || {}) }]);
   } else {
-    const c = consumption(P, HD.size);
-    chart('cFuel', [{ label: 'Use', color: 'var(--fuel)', pts: c }], { min: 0, unit: 'L/h', d: 1, tick: 0 });
-    statsTable('sFuel', [{ label: 'Diesel use', unit: 'L/h', d: 1, ...sstat(c.map(p => p.v)) }]);
+    const K = 0.278, tt = HD.stats.total || {};      // litres per hour = total kW x 0.278
+    chart('cFuel', [{ label: 'Use', color: 'var(--fuel)', pts: P.map(p => ({ t: p.t, v: p.total == null ? null : p.total * K })) }], { min: 0, unit: 'L/h', d: 1, tick: 0 });
+    statsTable('sFuel', [{ label: 'Diesel use', unit: 'L/h', d: 1, min: tt.min == null ? null : tt.min * K, max: tt.max == null ? null : tt.max * K, avg: tt.avg == null ? null : tt.avg * K }]);
   }
   $('rangelbl').textContent = fdt(HD.from) + '  to  ' + fdt(HD.to) + (HD.since && HD.since > HD.from ? '   (history starts ' + fdt(HD.since) + ')' : '');
 }
