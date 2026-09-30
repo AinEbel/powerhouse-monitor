@@ -13,7 +13,8 @@ if (E.FBOX_USERNAME) cfg.fbox.auth.username = E.FBOX_USERNAME;
 if (E.FBOX_PASSWORD) cfg.fbox.auth.password = E.FBOX_PASSWORD;
 if (E.FBOX_AUTH_METHOD) cfg.fbox.auth.method = E.FBOX_AUTH_METHOD;
 const HIST_FILE = path.join(__dirname, 'history.json');
-const DAY = 24 * 3600 * 1000;
+const DAY = 24 * 3600 * 1000, KEEP = 30 * DAY;
+let lastSave = 0;
 const gens = cfg.generators;
 
 // Every point that will be read, with the FBox variable name and group it lives in.
@@ -135,9 +136,11 @@ async function poll() {
     if (!last || Date.now() - last.t >= 60000) {
       const pt = { t: Date.now(), fuel: values.fuel_l ?? null };
       gens.forEach(g => pt[g.id] = values[g.id + '.kw'] ?? null);
+      const ks = gens.map(g => pt[g.id]).filter(x => x != null);
+      pt.total = ks.length ? +ks.reduce((a, b) => a + b, 0).toFixed(2) : null;
       history.push(pt);
-      history = history.filter(h => Date.now() - h.t < DAY);
-      fs.writeFile(HIST_FILE, JSON.stringify(history), () => {});
+      history = history.filter(h => Date.now() - h.t < KEEP);
+      if (Date.now() - lastSave > 300000) { lastSave = Date.now(); fs.writeFile(HIST_FILE, JSON.stringify(history), () => {}); }
     }
   } catch (e) {
     state.error = e.message; state.conn = 'error';
@@ -172,6 +175,33 @@ http.createServer((req, res) => {
     }
   }
   const url = req.url.split('?')[0];
+  if (url === '/api/history') {          // downsampled history for the trend charts, plus min/max/avg over the raw samples
+    const q = new URLSearchParams(req.url.split('?')[1] || '');
+    const to = Math.min(Date.now(), +q.get('to') || Date.now());
+    const from = Math.max(to - KEEP, +q.get('from') || to - DAY);
+    const keys = ['fuel', ...gens.map(g => g.id), 'total'];
+    const rows = history.filter(h => h.t >= from && h.t <= to);
+    const size = Math.max(60000, Math.ceil((to - from) / 300)), bk = new Map(), stats = {};
+    keys.forEach(k => stats[k] = { min: null, max: null, avg: null, n: 0 });
+    for (const h of rows) {
+      const i = Math.floor((h.t - from) / size); let b = bk.get(i);
+      if (!b) bk.set(i, b = { t: 0, n: 0, s: {}, c: {} });
+      b.t += h.t; b.n++;
+      for (const k of keys) if (h[k] != null) {
+        b.s[k] = (b.s[k] || 0) + h[k]; b.c[k] = (b.c[k] || 0) + 1;
+        const st = stats[k]; st.min = st.min == null ? h[k] : Math.min(st.min, h[k]); st.max = st.max == null ? h[k] : Math.max(st.max, h[k]);
+        st.avg = (st.avg || 0) + h[k]; st.n++;
+      }
+    }
+    keys.forEach(k => { if (stats[k].n) stats[k].avg /= stats[k].n; });
+    const points = [...bk.entries()].sort((a, b) => a[0] - b[0]).map(([, b]) => {
+      const p = { t: Math.round(b.t / b.n) };
+      keys.forEach(k => p[k] = b.c[k] ? +(b.s[k] / b.c[k]).toFixed(2) : null);
+      return p;
+    });
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({ from, to, size, since: history.length ? history[0].t : null, points, stats }));
+  }
   if (url === '/api/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     const s = cfg.site;
@@ -180,7 +210,7 @@ http.createServer((req, res) => {
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })),
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
-      conn: state.conn, error: state.error, updated: state.updated, values: state.values, history
+      conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
     }));
   }
   const file = path.join(__dirname, 'public', url === '/' ? 'index.html' : url);
