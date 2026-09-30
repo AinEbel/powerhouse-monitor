@@ -110,6 +110,23 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
 @keyframes shake{50%{transform:translateY(.9px)}}
 .lamp{fill:#3a444b}.on .lamp{fill:var(--ok);filter:drop-shadow(0 0 4px var(--ok))}
 @media(prefers-reduced-motion:reduce){.on .fan,.on .smoke circle,.on .eng,.wire.live{animation:none}}
+/* trends */
+.rangebar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.rangebar button,.seg button{font:600 15px "Barlow Condensed",sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;background:#0c0f11;color:var(--steel);border:1px solid #3a444b;border-radius:3px;cursor:pointer}
+.rangebar button.on,.seg button.on{background:var(--yellow);color:#111;border-color:var(--yellow)}
+.rangebar button:disabled{opacity:.35;cursor:default}
+.rangebar .sp{flex:1}
+.seg{display:inline-flex;gap:0}.seg button{border-radius:0}.seg button:first-child{border-radius:3px 0 0 3px}.seg button:last-child{border-radius:0 3px 3px 0}
+.chead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.chead h2{margin:0}.chead .legend{margin:0}
+.cwrap{position:relative}
+.trend{width:100%;height:auto;display:block;background:#0c1012;border:1px solid #2b353b;color:var(--steel);touch-action:pan-y;cursor:crosshair}
+.trend text{font-family:"Barlow Condensed",sans-serif;fill:var(--steel);font-size:11px;letter-spacing:.04em}
+.tip{position:absolute;top:8px;pointer-events:none;background:rgba(9,12,14,.94);border:1px solid #5a666e;padding:6px 10px;font-size:15px;line-height:1.4;white-space:nowrap;display:none;z-index:2}
+.tip b{display:block;font-family:"Barlow Condensed",sans-serif;letter-spacing:.06em;color:var(--ink);margin-bottom:2px}
+.tip i{display:inline-block;width:10px;height:10px;margin-right:7px;border-radius:2px}
+.tip span{font-family:"Share Tech Mono",monospace}
+.stats{font-size:16px;margin-top:10px}.stats td{font-size:18px}
 </style>
 </head>
 <body>
@@ -144,7 +161,12 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
         <div><svg class="ic"><use href="#i-gen"/></svg><div><b id="totgens">--</b><span>Generators running</span></div></div>
         <div><svg class="ic"><use href="#i-mains"/></svg><div><b id="mains">--</b><span>Mains (EDL)</span></div></div>
         <div><svg class="ic"><use href="#i-drop"/></svg><div><b id="burn">--</b><span>Fuel use (L/h)</span></div></div>
-        <div style="grid-column:1/-1"><svg class="ic"><use href="#i-clock"/></svg><div><b id="left">--</b><span>Fuel left at this rate</span></div></div>
+        <div><svg class="ic"><use href="#i-clock"/></svg><div><b id="left">--</b><span>Fuel left at this rate</span></div></div>
+        <div><svg class="ic"><use href="#i-bolt"/></svg><div><b id="totkva">--</b><span>Apparent power (kVA)</span></div></div>
+        <div><svg class="ic"><use href="#i-gen"/></svg><div><b id="totpf">--</b><span>Power factor</span></div></div>
+        <div><svg class="ic"><use href="#i-bolt"/></svg><div><b id="totkwh">--</b><span>Energy made (kWh)</span></div></div>
+        <div><svg class="ic"><use href="#i-drop"/></svg><div><b id="lpk">--</b><span>Fuel per kWh (L)</span></div></div>
+        <div><svg class="ic"><use href="#i-clock"/></svg><div><b id="hwin">--</b><span>Measured over</span></div></div>
       </div>
     </section>
   </div>
@@ -153,14 +175,21 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
 
   <div class="gens" id="gens"></div>
 
+  <section class="panel" style="margin-bottom:14px"><h2>Trends</h2>
+    <div class="rangebar" id="rangebar"></div>
+    <div class="sub" id="rangelbl" style="margin-top:10px"></div>
+  </section>
   <div class="charts">
-    <section class="panel"><h2>Diesel level, last 24 h</h2>
-      <svg class="chart" id="cFuel" viewBox="0 0 400 120" preserveAspectRatio="none"></svg>
-      <div class="axis"><span id="cFuelA"></span><span>now</span></div></section>
-    <section class="panel"><h2>Power, last 24 h</h2>
-      <div class="legend" id="pLegend"></div>
-      <svg class="chart" id="cKw" viewBox="0 0 400 120" preserveAspectRatio="none"></svg>
-      <div class="axis"><span id="cKwA"></span><span id="cKwMax"></span></div></section>
+    <section class="panel">
+      <div class="chead"><h2>Power production</h2><div class="legend" id="pLegend"></div></div>
+      <div class="cwrap"><svg class="trend" id="cKw" viewBox="0 0 460 220"></svg><div class="tip" id="cKw-tip"></div></div>
+      <table class="stats" id="sKw"></table>
+    </section>
+    <section class="panel">
+      <div class="chead"><h2>Diesel</h2><span class="seg" id="fuelmode"><button data-m="level" class="on">Level</button><button data-m="use">Use L/h</button></span></div>
+      <div class="cwrap"><svg class="trend" id="cFuel" viewBox="0 0 460 220"></svg><div class="tip" id="cFuel-tip"></div></div>
+      <table class="stats" id="sFuel"></table>
+    </section>
   </div>
 
   <section class="panel"><h2>Power house details</h2><dl id="details"></dl></section>
@@ -172,22 +201,17 @@ const $ = id => document.getElementById(id);
 const fmt = (v, d = 0) => v == null || isNaN(v) ? '--' : Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const COL = ['var(--g1)', 'var(--g2)'];
 const PH = ['#d9452f', '#e6b800', '#3f83e0'];
-let built = false;
+let built = false, GENS = [];
 
-function line(svg, series, opts) {           // series: [{pts:[{t,v}], color}]
-  const all = series.flatMap(s => s.pts.filter(p => p.v != null));
-  if (all.length < 2) { svg.innerHTML = '<text x="200" y="64" text-anchor="middle" fill="currentColor" font-size="12" opacity=".6">Collecting data…</text>'; return; }
-  const t0 = Math.min(...all.map(p => p.t)), t1 = Math.max(...all.map(p => p.t));
-  const lo = opts.min ?? Math.min(...all.map(p => p.v));
-  const hi = opts.max ?? Math.max(10, ...all.map(p => p.v)) * 1.1;
-  const y = v => 112 - (v - lo) / ((hi - lo) || 1) * 104, x = t => (t - t0) / ((t1 - t0) || 1) * 400;
-  let g = '';
-  for (let i = 0; i <= 4; i++) g += '<path d="M0 ' + (8 + i * 26) + 'H400" stroke="#26313a" stroke-width="1" vector-effect="non-scaling-stroke"/>';
-  series.forEach(s => {
-    const p = s.pts.filter(q => q.v != null);
-    if (p.length > 1) g += '<path d="' + p.map((q, i) => (i ? 'L' : 'M') + x(q.t).toFixed(1) + ' ' + y(q.v).toFixed(1)).join('') + '" fill="none" stroke="' + s.color + '" stroke-width="2.4" vector-effect="non-scaling-stroke"/>';
-  });
-  svg.innerHTML = g; return hi;
+const dur = h => h == null ? '--' : h < 1 ? Math.round(h * 60) + ' min' : Math.floor(h) + 'h ' + String(Math.round(h % 1 * 60)).padStart(2, '0') + 'm';
+function energy(H, id) {              // kWh and running hours from history samples (gaps over 10 min ignored)
+  let kwh = 0, hrs = 0;
+  for (let i = 1; i < H.length; i++) {
+    const a = H[i - 1], b = H[i], dt = (b.t - a.t) / 36e5;
+    if (dt <= 0 || dt > 1 / 6 || a[id] == null || b[id] == null) continue;
+    kwh += (a[id] + b[id]) / 2 * dt; if (a[id] > 1 || b[id] > 1) hrs += dt;
+  }
+  return { kwh, hrs };
 }
 const ago = t => { const h = (Date.now() - t) / 36e5; return h >= 1 ? Math.round(h) + ' h ago' : Math.max(1, Math.round(h * 60)) + ' min ago'; };
 
@@ -233,8 +257,11 @@ function build(s) {
         ${[1, 2, 3].map(p => `<tr><td><i class="ph" style="background:${PH[p - 1]}"></i>L${p}</td><td id="${g.id}-v${p}">--</td><td id="${g.id}-i${p}">--</td></tr>`).join('')}
       </tbody></table>
       <div class="mini"><div><b id="${g.id}-freq">--</b><span>Hz</span></div><div><b id="${g.id}-hours">--</b><span>Engine hours</span></div></div>
+      <div class="mini"><div><b id="${g.id}-kva">--</b><span>kVA now</span></div><div><b id="${g.id}-pf">--</b><span>Power factor</span></div><div><b id="${g.id}-vavg">--</b><span>Avg volts</span></div></div>
+      <div class="mini"><div><b id="${g.id}-atot">--</b><span>Total amps</span></div><div><b id="${g.id}-kwh">--</b><span>kWh made</span></div><div><b id="${g.id}-run">--</b><span>Run time</span></div></div>
     </section>`).join('');
-  $('pLegend').innerHTML = s.generators.map((g, n) => `<span><i style="background:${COL[n % 2]}"></i>${g.label}</span>`).join('');
+  GENS = s.generators;
+  if (HD) drawTrends();
   // single-line power flow: mains -> busbar -> load, generators feed the busbar from below
   const n = s.generators.length, gx = i => 190 + (i + 1) * 420 / (n + 1);
   $('flow').innerHTML = `
@@ -314,7 +341,7 @@ async function refresh() {
   wire('pfl-edl', edl === 1, ' mains'); $('pf-edl').textContent = edl == null ? '--' : edl ? 'ON' : 'OFF';
 
   // generators
-  let tot = 0, running = 0;
+  let tot = 0, running = 0, totKva = 0, totKwh = 0;
   s.generators.forEach(g => {
     const k = n => v[g.id + '.' + n], kw = k('kw'), st = k('status');
     const on = st != null ? st === 1 : kw != null && kw > 1;
@@ -332,6 +359,15 @@ async function refresh() {
     $(g.id + '-load').textContent = !on ? 'Not producing power' : load != null ? Math.round(load) + '% of ' + fmt(ratedKw) + ' kW rated' : '';
     [1, 2, 3].forEach(p => { $(g.id + '-v' + p).textContent = fmt(k('v' + p), 0); $(g.id + '-i' + p).textContent = fmt(k('i' + p), 1); });
     $(g.id + '-freq').textContent = fmt(k('freq'), 1); $(g.id + '-hours').textContent = fmt(k('hours'), 0);
+    const pv = [1, 2, 3].map(p => k('v' + p)), pi = [1, 2, 3].map(p => k('i' + p)), okp = pv.every(x => x != null) && pi.every(x => x != null);
+    const kva = okp ? pv.reduce((a, x, i) => a + x * pi[i], 0) / 1000 : null;
+    totKva += on && kva ? kva : 0;
+    $(g.id + '-kva').textContent = on && kva != null ? fmt(kva, 1) : '--';
+    $(g.id + '-pf').textContent = on && kva > 1 && kw != null ? fmt(Math.min(1, kw / kva), 2) : '--';
+    $(g.id + '-vavg').textContent = okp && on ? fmt(pv.reduce((a, b) => a + b) / 3, 0) : '--';
+    $(g.id + '-atot').textContent = okp && on ? fmt(pi.reduce((a, b) => a + b), 0) : '--';
+    const e = energy(H, g.id); totKwh += e.kwh;
+    $(g.id + '-kwh').textContent = fmt(e.kwh, 0); $(g.id + '-run').textContent = dur(e.hrs);
     if (on) {
       const vs = [1, 2, 3].map(p => k('v' + p)).filter(x => x != null), is = [1, 2, 3].map(p => k('i' + p)).filter(x => x != null);
       if (vs.some(x => x < 207 || x > 253)) alerts.push(['warn', g.label + ' voltage out of range', 'Phase voltage outside 207 to 253 V.']);
@@ -340,23 +376,147 @@ async function refresh() {
       if (load != null && load > 90) alerts.push(['warn', g.label + ' heavily loaded', Math.round(load) + '% of rated power.']);
     }
   });
+  $('totkva').textContent = running ? fmt(totKva, 1) : '--';
+  $('totpf').textContent = running && totKva > 1 ? fmt(Math.min(1, tot / totKva), 2) : '--';
+  $('totkwh').textContent = fmt(totKwh, 0);
+  $('lpk').textContent = rate && tot > 20 ? fmt(rate / tot, 2) : '--';
+  $('hwin').textContent = H.length > 1 ? dur((H[H.length - 1].t - H[0].t) / 36e5) : '--';
   $('totkw').textContent = fmt(tot, 1); $('totgens').textContent = running + ' of ' + s.generators.length;
   wire('pfl-load', tot > 1); $('pf-load').textContent = fmt(tot, 1) + ' kW';
 
   $('alerts').innerHTML = (alerts.length ? alerts : [['okay', 'No alerts', 'Everything reported is within normal range.']])
     .map(a => `<div class="alert ${a[0]}"><b>${a[1]}</b> ${a[2]}</div>`).join('');
 
-  // charts
-  line($('cFuel'), [{ pts: H.map(x => ({ t: x.t, v: x.fuel })), color: 'var(--fuel)' }], { min: 0, max: s.site.tankLitres || undefined });
-  $('cFuelA').textContent = H.length ? ago(H[0].t) : '';
-  const hi = line($('cKw'), s.generators.map((g, n) => ({ pts: H.map(x => ({ t: x.t, v: x[g.id] })), color: COL[n % 2] })), { min: 0 });
-  $('cKwA').textContent = H.length ? ago(H[0].t) : ''; $('cKwMax').textContent = hi ? 'scale to ' + fmt(hi) + ' kW' : '';
-
   // details
   $('details').innerHTML = Object.entries(s.site.details).map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')
     + (T ? `<dt>Tank size</dt><dd>${fmt(T)} litres</dd>` : '') + s.generators.filter(x => x.ratedKva).map(x => `<dt>${x.label} rating</dt><dd>${fmt(x.ratedKva)} kVA (${fmt(x.ratedKva * 0.8)} kW)</dd>`).join('');
   $('foot').textContent = 'Page refreshes every 5 seconds. Plant data refreshes from the FBox every ' + s.pollSeconds + ' seconds.';
 }
+// ---- trends: time range, back/forward, hover read-out, min / max / average ----
+const R = { hours: 24, end: null, mode: 'level' };
+const RANGES = [[1, '1 h'], [6, '6 h'], [24, '24 h'], [168, '7 d'], [720, '30 d']];
+let HD = null;
+const fdt = t => new Date(t).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const ftick = (t, span) => span <= 36 * 36e5 ? new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short' });
+
+function rangeBar() {
+  $('rangebar').innerHTML = RANGES.map(([h, l]) => `<button data-h="${h}" class="${R.hours === h ? 'on' : ''}">${l}</button>`).join('') +
+    `<span class="sp"></span><button data-a="back" title="Go back in time">&#9664; Back</button><button data-a="fwd" ${R.end ? '' : 'disabled'} title="Go forward">Forward &#9654;</button><button data-a="now" ${R.end ? '' : 'disabled'}>Now</button>`;
+}
+$('rangebar').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const span = R.hours * 36e5;
+  if (b.dataset.h) R.hours = +b.dataset.h;
+  else if (b.dataset.a === 'back') R.end = (R.end || Date.now()) - span / 2;
+  else if (b.dataset.a === 'fwd') { R.end += span / 2; if (R.end > Date.now() - 60000) R.end = null; }
+  else R.end = null;
+  rangeBar(); loadHist();
+});
+$('fuelmode').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  R.mode = b.dataset.m; [...$('fuelmode').children].forEach(x => x.classList.toggle('on', x === b)); drawTrends();
+});
+
+async function loadHist() {
+  const to = R.end || Date.now(), from = to - R.hours * 36e5;
+  try {
+    const r = await fetch('/api/history?from=' + Math.round(from) + '&to=' + Math.round(to), { cache: 'no-store' });
+    if (!r.ok) throw 0; HD = await r.json(); HD.reqFrom = from; HD.reqTo = to;
+  } catch (e) { return; }
+  drawTrends();
+}
+
+function consumption(pts, size) {        // litres per hour, from the level change over a 15 minute (or longer) window
+  const W = Math.max(15 * 60000, 3 * size), out = []; let j = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]; while (pts[j].t < p.t - W) j++;
+    const a = pts[j]; let v = null;
+    if (a.fuel != null && p.fuel != null && p.t - a.t >= W / 2) { const d = (a.fuel - p.fuel) / ((p.t - a.t) / 36e5); if (d >= 0 && d < 500) v = d; }
+    out.push({ t: p.t, v });
+  }
+  return out;
+}
+const sstat = vals => { const v = vals.filter(x => x != null); return v.length ? { min: Math.min(...v), max: Math.max(...v), avg: v.reduce((a, b) => a + b, 0) / v.length } : {}; };
+
+function statsTable(id, cols) {
+  const c = (o, k) => o[k] == null ? '--' : fmt(o[k], o.d) + ' ' + o.unit;
+  $(id).innerHTML = '<thead><tr><th></th>' + cols.map(x => `<th>${x.label}</th>`).join('') + '</tr></thead><tbody>' +
+    [['Minimum', 'min'], ['Maximum', 'max'], ['Average', 'avg']].map(([l, k]) => `<tr><td>${l}</td>${cols.map(x => `<td>${c(x, k)}</td>`).join('')}</tr>`).join('') + '</tbody>';
+}
+
+function chart(id, list, o) {            // list: [{label,color,dash,pts:[{t,v}]}]
+  const svg = $(id), W = 460, H = 220, L = 46, RR = 10, T = 10, B = 26, from = HD.from, to = HD.to, span = to - from;
+  const all = list.flatMap(s => s.pts.filter(p => p.v != null));
+  svg._m = null; $(id + '-tip').style.display = 'none';
+  if (all.length < 2) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" style="font-size:13px" opacity=".7">No data in this period</text>`; return; }
+  let lo = o.min ?? Math.min(...all.map(p => p.v)), hi = Math.max(...all.map(p => p.v));
+  hi = o.max ?? (hi * 1.08); if (hi - lo < 1e-6) hi = lo + 1;
+  const x = t => L + (t - from) / span * (W - L - RR), y = v => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  const gap = Math.max(10 * 60000, 4 * HD.size);
+  let g = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = lo + (hi - lo) * i / 4, yy = y(v);
+    g += `<path d="M${L} ${yy.toFixed(1)}H${W - RR}" stroke="#26313a" stroke-width="1"/><text x="${L - 6}" y="${(yy + 4).toFixed(1)}" text-anchor="end">${fmt(v, o.tick)}</text>`;
+  }
+  for (let i = 0; i <= 4; i++) {
+    const t = from + span * i / 4, xx = x(t);
+    g += `<text x="${xx.toFixed(1)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}">${ftick(t, span)}</text>`;
+  }
+  list.forEach(s => {
+    let d = '', prev = null;
+    s.pts.forEach(p => { if (p.v == null) { prev = null; return; } d += (prev == null || p.t - prev > gap ? 'M' : 'L') + x(p.t).toFixed(1) + ' ' + y(p.v).toFixed(1); prev = p.t; });
+    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" ${s.dash ? 'stroke-dasharray="' + s.dash + '"' : ''} stroke-linejoin="round"/>`;
+  });
+  g += `<g id="${id}-x" style="display:none"><path stroke="#8d9aa3" stroke-width="1" stroke-dasharray="3 3" d="M0 ${T}V${H - B}"/>${list.map((s, i) => `<circle r="4" fill="${s.color}" stroke="#0c1012" stroke-width="2" cx="0" cy="0" id="${id}-d${i}"/>`).join('')}</g>`;
+  svg.innerHTML = g;
+  svg._m = { list, x, y, W, L, RR, T, B, H, from, to, o };
+}
+
+function hover(svg, e) {
+  const m = svg._m, tip = $(svg.id + '-tip'), xg = $(svg.id + '-x'); if (!m) return;
+  const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * m.W;
+  if (px < m.L || px > m.W - m.RR) { tip.style.display = 'none'; xg.style.display = 'none'; return; }
+  const t = m.from + (px - m.L) / (m.W - m.L - m.RR) * (m.to - m.from), base = m.list[0].pts;
+  let bi = 0, bd = Infinity; base.forEach((p, i) => { const d = Math.abs(p.t - t); if (d < bd) { bd = d; bi = i; } });
+  const pt = base[bi], xx = m.x(pt.t);
+  xg.style.display = ''; xg.firstChild.setAttribute('d', `M${xx.toFixed(1)} ${m.T}V${m.H - m.B}`);
+  let rows = '';
+  m.list.forEach((s, i) => {
+    const p = s.pts[bi], dot = $(svg.id + '-d' + i);
+    if (p && p.v != null) { dot.style.display = ''; dot.setAttribute('cx', xx.toFixed(1)); dot.setAttribute('cy', m.y(p.v).toFixed(1)); } else dot.style.display = 'none';
+    rows += `<div><i style="background:${s.color}"></i>${s.label} <span>${p && p.v != null ? fmt(p.v, m.o.d) + ' ' + m.o.unit : '--'}</span></div>`;
+  });
+  tip.innerHTML = `<b>${fdt(pt.t)}</b>${rows}`; tip.style.display = 'block';
+  const w = tip.offsetWidth, cw = svg.clientWidth, left = xx / m.W * cw;
+  tip.style.left = Math.max(4, Math.min(cw - w - 4, left > cw / 2 ? left - w - 12 : left + 12)) + 'px';
+}
+['cKw', 'cFuel'].forEach(id => {
+  const svg = $(id);
+  svg.addEventListener('pointermove', e => hover(svg, e));
+  svg.addEventListener('pointerdown', e => hover(svg, e));
+  svg.addEventListener('pointerleave', () => { $(id + '-tip').style.display = 'none'; const xg = $(id + '-x'); if (xg) xg.style.display = 'none'; });
+});
+
+function drawTrends() {
+  if (!HD || !GENS.length) return;
+  const P = HD.points, span = HD.to - HD.from;
+  const kwList = [...GENS.map((g, n) => ({ label: g.label, color: COL[n % 2], pts: P.map(p => ({ t: p.t, v: p[g.id] })) })),
+                  { label: 'Total', color: '#e8edf0', dash: '6 4', pts: P.map(p => ({ t: p.t, v: p.total })) }];
+  $('pLegend').innerHTML = kwList.map(s => `<span><i style="background:${s.color}"></i>${s.label}</span>`).join('');
+  chart('cKw', kwList, { min: 0, unit: 'kW', d: 1, tick: 0 });
+  statsTable('sKw', kwList.map((s, i) => { const k = i < GENS.length ? GENS[i].id : 'total'; return { label: s.label, unit: 'kW', d: 1, ...(HD.stats[k] || {}) }; }));
+  if (R.mode === 'level') {
+    chart('cFuel', [{ label: 'Diesel', color: 'var(--fuel)', pts: P.map(p => ({ t: p.t, v: p.fuel })) }], { unit: 'L', d: 0, tick: 0 });
+    statsTable('sFuel', [{ label: 'Level', unit: 'L', d: 0, ...(HD.stats.fuel || {}) }]);
+  } else {
+    const c = consumption(P, HD.size);
+    chart('cFuel', [{ label: 'Use', color: 'var(--fuel)', pts: c }], { min: 0, unit: 'L/h', d: 1, tick: 0 });
+    statsTable('sFuel', [{ label: 'Diesel use', unit: 'L/h', d: 1, ...sstat(c.map(p => p.v)) }]);
+  }
+  $('rangelbl').textContent = fdt(HD.from) + '  to  ' + fdt(HD.to) + (HD.since && HD.since > HD.from ? '   (history starts ' + fdt(HD.since) + ')' : '');
+}
+rangeBar(); loadHist(); setInterval(() => { if (!R.end) loadHist(); }, 30000);
+
 function setStatus(c, t) { $('status').className = 'status ' + c; $('statustext').textContent = t; }
 refresh(); setInterval(refresh, 5000);
 </script>
