@@ -127,6 +127,16 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
 .tip i{display:inline-block;width:10px;height:10px;margin-right:7px;border-radius:2px}
 .tip span{font-family:"Share Tech Mono",monospace}
 .stats{font-size:16px;margin-top:10px}.stats td{font-size:18px}
+/* refuelling log */
+.btn{font:600 15px "Barlow Condensed",sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:6px 14px;background:var(--yellow);color:#111;border-radius:3px;text-decoration:none}
+.rtop{display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.rsum{display:flex;gap:26px;flex-wrap:wrap}
+.rsum b{display:block;font-family:"Share Tech Mono",monospace;font-size:22px;font-weight:400}
+.rsum span{font-size:13px;color:var(--steel);text-transform:uppercase;letter-spacing:.06em}
+.tscroll{overflow-x:auto}
+.rlog{font-size:17px;min-width:560px}.rlog td small{display:block;font-family:"Barlow",sans-serif;font-size:13px;color:var(--steel)}
+.rlog tr.new td{background:rgba(255,194,26,.07)}
+.rlog td.add{color:var(--fuel)}
 </style>
 </head>
 <body>
@@ -191,6 +201,14 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
       <table class="stats" id="sFuel"></table>
     </section>
   </div>
+
+  <section class="panel" id="refuel" style="margin-bottom:14px">
+    <div class="chead"><h2>Refuelling log</h2><a class="btn" href="/api/refuels.csv">Download CSV</a></div>
+    <div class="rtop"><div class="lcd"><span class="big" id="rcnt">--</span><small>fuel counter</small></div><div class="rsum" id="rsum"></div></div>
+    <div class="alert bad" id="ropen" style="display:none;margin-bottom:12px"></div>
+    <div class="tscroll"><table class="rlog" id="rlog"></table></div>
+    <div class="sub" id="rnote"></div>
+  </section>
 
   <section class="panel"><h2>Power house details</h2><dl id="details"></dl></section>
   <footer id="foot"></footer>
@@ -516,6 +534,21 @@ function drawTrends() {
   $('rangelbl').textContent = fdt(HD.from) + '  to  ' + fdt(HD.to) + (HD.since && HD.since > HD.from ? '   (history starts ' + fdt(HD.since) + ')' : '');
 }
 rangeBar(); loadHist(); setInterval(() => { if (!R.end) loadHist(); }, 30000);
+
+// ---- refuelling log: every rise of the fuel counter ----
+async function loadRefuels() {
+  let d; try { const r = await fetch('/api/refuels', { cache: 'no-store' }); if (!r.ok) throw 0; d = await r.json(); } catch (e) { return; }
+  const L = d.list, tot = L.reduce((a, r) => a + r.litres, 0), mins = r => Math.max(1, Math.round((r.end - r.start) / 60000));
+  $('rcnt').textContent = d.counter == null ? '--' : fmt(d.counter, 0);
+  $('rsum').innerHTML = L.length ? `<div><b>${fdt(L[0].start)}</b><span>Last refuel, +${fmt(L[0].litres, 0)} L</span></div><div><b>${L.length}</b><span>Refuels logged</span></div><div><b>${fmt(tot, 0)} L</b><span>Total added</span></div>` : '';
+  const o = $('ropen'); o.style.display = d.open ? 'block' : 'none';
+  if (d.open) o.innerHTML = `<b>Refuelling now</b> +${fmt(d.open.litres, 0)} L so far. Counter ${fmt(d.open.counterBefore, 0)} to ${fmt(d.open.counterAfter, 0)}, started ${fdt(d.open.start)}.`;
+  $('rlog').innerHTML = L.length ? '<thead><tr><th>Date and time</th><th>Counter before</th><th>Counter after</th><th>Litres added</th><th>Tank before / after</th></tr></thead><tbody>' +
+    L.map((r, i) => `<tr class="${i ? '' : 'new'}"><td>${fdt(r.start)}<small>${mins(r)} min, ended ${new Date(r.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small></td><td>${fmt(r.counterBefore, 0)}</td><td>${fmt(r.counterAfter, 0)}</td><td class="add">+${fmt(r.litres, 0)} L</td><td>${r.levelBefore == null ? '--' : fmt(r.levelBefore, 0)} / ${r.levelAfter == null ? '--' : fmt(r.levelAfter, 0)} L</td></tr>`).join('') + '</tbody>'
+    : '<tbody><tr><td style="text-align:left;color:var(--steel);font-family:Barlow,sans-serif;font-size:16px">No refuelling recorded yet. A line is added here each time the fuel counter goes up.</td></tr></tbody>';
+  $('rnote').textContent = 'Logging since ' + fdt(d.since) + '. A refuel is closed after 4 minutes with no further rise in the counter. The log is kept on the server; use Download CSV to keep your own copy.';
+}
+loadRefuels(); setInterval(loadRefuels, 15000);
 
 function setStatus(c, t) { $('status').className = 'status ' + c; $('statustext').textContent = t; }
 refresh(); setInterval(refresh, 5000);
