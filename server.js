@@ -15,6 +15,35 @@ if (E.FBOX_AUTH_METHOD) cfg.fbox.auth.method = E.FBOX_AUTH_METHOD;
 const HIST_FILE = path.join(__dirname, 'history.json');
 const DAY = 24 * 3600 * 1000, KEEP = 30 * DAY;
 let lastSave = 0;
+// ---- refuelling log: every rise of the FBox fuel counter is a refuel; a refuel ends after a quiet spell ----
+const REFUEL_FILE = path.join(__dirname, 'refuels.json');
+const REFUEL_GAP = (+E.REFUEL_GAP_S || 240) * 1000;      // no counter rise for this long = refuel finished
+let refuels = [], openR = null, lastCounter = null, lastLevel = null;
+const trackStart = Date.now();
+try { refuels = JSON.parse(fs.readFileSync(REFUEL_FILE, 'utf8')); } catch (_) {}
+function saveRefuels() { fs.writeFile(REFUEL_FILE, JSON.stringify(refuels), () => {}); }
+function closeRefuel(level) {
+  if (!openR) return;
+  const litres = +(openR.counterAfter - openR.counterBefore).toFixed(2);
+  if (litres > 0) {
+    refuels.push({ id: openR.start, start: openR.start, end: openR.end, counterBefore: openR.counterBefore, counterAfter: openR.counterAfter, litres, levelBefore: openR.levelBefore, levelAfter: level ?? openR.levelAfter });
+    refuels = refuels.slice(-2000); saveRefuels();
+  }
+  openR = null;
+}
+function trackRefuel(v) {
+  const c = v.fuel_counter, L = v.fuel_l ?? null, now = Date.now();
+  if (c == null) return;
+  if (lastCounter == null) { lastCounter = c; lastLevel = L; return; }
+  if (c > lastCounter) {
+    if (!openR) openR = { start: now, counterBefore: lastCounter, levelBefore: lastLevel };
+    openR.end = now; openR.counterAfter = c; openR.levelAfter = L; lastCounter = c;
+  } else if (lastCounter - c > 5) {                       // counter was reset: start counting from the new value
+    closeRefuel(L); lastCounter = c;
+  }                                                       // a tiny dip is sensor noise: keep the highest value as baseline
+  if (openR) { openR.levelAfter = L ?? openR.levelAfter; if (now - openR.end > REFUEL_GAP) closeRefuel(L); }
+  else lastLevel = L;
+}
 const gens = cfg.generators;
 
 // Every point that will be read, with the FBox variable name and group it lives in.
@@ -132,6 +161,7 @@ async function poll() {
       if (values[h] != null) values[h] += (values[g.id + '.min'] || 0) / 60 + (values[g.id + '.sec'] || 0) / 3600;
     });
     state = { conn, updated: Date.now(), values, error: null };
+    trackRefuel(values);
     const last = history[history.length - 1];
     if (!last || Date.now() - last.t >= 60000) {
       const pt = { t: Date.now(), fuel: values.fuel_l ?? null };
@@ -175,6 +205,17 @@ http.createServer((req, res) => {
     }
   }
   const url = req.url.split('?')[0];
+  if (url === '/api/refuels' || url === '/api/refuels.csv') {
+    const list = [...refuels].reverse();
+    if (url.endsWith('.csv')) {
+      const f = t => new Date(t + 3 * 3600000).toISOString().slice(0, 16).replace('T', ' ');   // Lebanon time, for the spreadsheet copy
+      const rows = list.map(r => [f(r.start), f(r.end), r.counterBefore, r.counterAfter, r.litres, r.levelBefore ?? '', r.levelAfter ?? ''].join(','));
+      res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="refuelling-log.csv"' });
+      return res.end(['Start,End,Counter before,Counter after,Litres added,Tank before (L),Tank after (L)', ...rows].join('\r\n') + '\r\n');
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({ now: Date.now(), counter: lastCounter, since: trackStart, open: openR && openR.counterAfter != null ? { ...openR, litres: +(openR.counterAfter - openR.counterBefore).toFixed(2) } : null, list }));
+  }
   if (url === '/api/history') {          // downsampled history for the trend charts, plus min/max/avg over the raw samples
     const q = new URLSearchParams(req.url.split('?')[1] || '');
     const to = Math.min(Date.now(), +q.get('to') || Date.now());
