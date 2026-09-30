@@ -44,23 +44,21 @@ function trackRefuel(v) {
   if (openR) { openR.levelAfter = L ?? openR.levelAfter; if (now - openR.end > REFUEL_GAP) closeRefuel(L); }
   else lastLevel = L;
 }
-// ---- fuel level log: one line every time the tank level falls by 1 litre (the baseline follows the level up, so a refuel restarts from the new highest level) ----
+// ---- fuel level log: one line every hour (on the hour): tank level, litres used since the previous line, average load ----
 const FUELLOG_FILE = path.join(__dirname, 'fuellog.json');
-let fuelLog = [], fuelBase = null, fuelBaseT = null, fuelCur = null;
+let fuelLog = [], fuelCur = null, lastLogHour = null, prevLogLevel = null, kwSum = 0, kwN = 0;
 try { fuelLog = JSON.parse(fs.readFileSync(FUELLOG_FILE, 'utf8')); } catch (_) {}
+if (fuelLog.length) { const l = fuelLog[fuelLog.length - 1]; lastLogHour = Math.floor(l.t / 3600000); prevLogLevel = l.level; }
 function trackFuelLevel(v) {
   const L = v.fuel_l, now = Date.now();
   if (L == null || !isFinite(L)) return;
   fuelCur = L;
-  if (fuelBase == null) { fuelBase = L; fuelBaseT = now; return; }
-  if (L > fuelBase) { if (L - fuelBase >= 5) fuelBaseT = now; fuelBase = L; return; }     // level went up (refuelling): start again from the highest number
-  if (fuelBase - L >= 1) {
-    const drop = +(fuelBase - L).toFixed(1), mins = (now - fuelBaseT) / 60000;
-    const kw = gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0);
-    fuelLog.push({ t: now, level: +L.toFixed(1), drop, secs: Math.round((now - fuelBaseT) / 1000), lph: mins > 0 ? +(drop / mins * 60).toFixed(1) : null, kw: +kw.toFixed(1) });
-    fuelLog = fuelLog.slice(-5000); fs.writeFile(FUELLOG_FILE, JSON.stringify(fuelLog), () => {});
-    fuelBase = L; fuelBaseT = now;
-  }
+  kwSum += gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0); kwN++;
+  const hr = Math.floor(now / 3600000);
+  if (hr === lastLogHour) return;
+  fuelLog.push({ t: now, level: +L.toFixed(1), drop: prevLogLevel == null ? null : +(prevLogLevel - L).toFixed(1), kw: +(kwSum / kwN).toFixed(1) });     // drop: litres used since the previous line (negative = the level went up, refuelling)
+  fuelLog = fuelLog.slice(-5000); fs.writeFile(FUELLOG_FILE, JSON.stringify(fuelLog), () => {});
+  lastLogHour = hr; prevLogLevel = L; kwSum = 0; kwN = 0;
 }
 const gens = cfg.generators;
 
@@ -228,10 +226,10 @@ http.createServer((req, res) => {
     if (url.endsWith('.csv')) {
       const f = t => new Date(t + 3 * 3600000).toISOString().slice(0, 19).replace('T', ' ');   // Lebanon time
       res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="fuel-level-log.csv"' });
-      return res.end(['Date and time,Tank level (L),Dropped (L),Load (kW)', ...list.map(r => [f(r.t), r.level, r.drop, r.kw].join(','))].join('\r\n') + '\r\n');
+      return res.end(['Date and time,Tank level (L),Used since previous line (L; negative = level went up),Average load (kW)', ...list.map(r => [f(r.t), r.level, r.drop ?? '', r.kw].join(','))].join('\r\n') + '\r\n');
     }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    return res.end(JSON.stringify({ now: Date.now(), since: trackStart, level: fuelCur, base: fuelBase, total: fuelLog.length, list: list.slice(0, 300) }));
+    return res.end(JSON.stringify({ now: Date.now(), since: trackStart, level: fuelCur, total: fuelLog.length, list: list.slice(0, 300) }));
   }
   if (url === '/api/refuels' || url === '/api/refuels.csv') {
     const list = [...refuels].reverse();
