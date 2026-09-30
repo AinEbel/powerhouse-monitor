@@ -31,22 +31,29 @@
   ],
 
   "points": [
-    { "key": "v1",    "name": "L1 - N", "decimals": 0 },
-    { "key": "v2",    "name": "L2 - N", "decimals": 0 },
-    { "key": "v3",    "name": "L3 - N", "decimals": 0 },
-    { "key": "i1",    "name": "Amp 1",  "decimals": 1 },
-    { "key": "i2",    "name": "Amp 2",  "decimals": 1 },
-    { "key": "i3",    "name": "Amp 3",  "decimals": 1 },
-    { "key": "freq",  "name": "HZ",     "decimals": 1 },
-    { "key": "kw",    "name": "KW",     "decimals": 1 },
+    { "key": "v1",    "name": "L1 - N", "decimals": 0, "div": 10 },
+    { "key": "v2",    "name": "L2 - N", "decimals": 0, "div": 10 },
+    { "key": "v3",    "name": "L3 - N", "decimals": 0, "div": 10 },
+    { "key": "i1",    "name": "Amp 1",  "decimals": 1, "div": 10 },
+    { "key": "i2",    "name": "Amp 2",  "decimals": 1, "div": 10 },
+    { "key": "i3",    "name": "Amp 3",  "decimals": 1, "div": 10 },
+    { "key": "freq",  "name": "HZ",     "decimals": 1, "div": 10 },
+    { "key": "kw",    "name": "KW",     "decimals": 1, "div": 10 },
     { "key": "hours", "name": "HRS",    "decimals": 0 },
     { "key": "min",   "name": "MIN",    "decimals": 0 },
     { "key": "sec",   "name": "SEC",    "decimals": 0 }
   ],
 
   "shared": [
-    { "key": "fuel_l",       "name": "DIESEL (LITERS)", "group": "FUEL TANK",  "decimals": 0 },
+    { "key": "fuel_l",       "name": "DIESEL (LITERS)", "group": "FUEL TANK",  "decimals": 0, "div": 10 },
     { "key": "fuel_counter", "name": "FUEL COUNTER",    "group": "FUEL TANK",  "decimals": 0 },
     { "key": "edl",          "name": "EDL STATUS",      "group": "PWR STATUS", "decimals": 0 }
+  ],
+
+  "_notes": [
+    "Names and groups match FBox Manager exactly (checked on the Al Dhour box).",
+    "generators[].names overrides a point name for that generator (GEN 2 uses Amp1 and TOTAL KW).",
+    "site.tankLitres: set the tank capacity to show the gauge and % (leave null until known).",
+    "site.ratedKva: set the generator rating to show load % bars (leave null until known)."
   ]
 }
