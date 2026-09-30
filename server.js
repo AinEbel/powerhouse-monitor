@@ -228,7 +228,7 @@ http.createServer((req, res) => {
     if (url.endsWith('.csv')) {
       const f = t => new Date(t + 3 * 3600000).toISOString().slice(0, 19).replace('T', ' ');   // Lebanon time
       res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="fuel-level-log.csv"' });
-      return res.end(['Date and time,Tank level (L),Dropped (L),Seconds since previous,Rate (L/h),Load (kW)', ...list.map(r => [f(r.t), r.level, r.drop, r.secs, r.lph ?? '', r.kw].join(','))].join('\r\n') + '\r\n');
+      return res.end(['Date and time,Tank level (L),Dropped (L),Load (kW)', ...list.map(r => [f(r.t), r.level, r.drop, r.kw].join(','))].join('\r\n') + '\r\n');
     }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({ now: Date.now(), since: trackStart, level: fuelCur, base: fuelBase, total: fuelLog.length, list: list.slice(0, 300) }));
