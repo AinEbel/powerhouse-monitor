@@ -217,13 +217,6 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
     <div class="sub" id="fnote"></div>
     </div>
   </section>
-  <section class="panel" id="refuel" style="margin-bottom:14px">
-    <div class="chead"><h2>Refuelling log</h2><a class="btn" href="/api/refuels.csv">Download CSV</a></div>
-    <div class="rtop"><div class="lcd"><span class="big" id="rcnt">--</span><small>fuel counter</small></div><div class="rsum" id="rsum"></div></div>
-    <div class="alert bad" id="ropen" style="display:none;margin-bottom:12px"></div>
-    <div class="tscroll"><table class="rlog" id="rlog"></table></div>
-    <div class="sub" id="rnote"></div>
-  </section>
 
   <section class="panel"><h2>Power house details</h2><dl id="details"></dl></section>
   <footer id="foot"></footer>
@@ -290,7 +283,7 @@ function build(s) {
         ${[1, 2, 3].map(p => `<tr><td><i class="ph" style="background:${PH[p - 1]}"></i>L${p}</td><td id="${g.id}-v${p}">--</td><td id="${g.id}-i${p}">--</td></tr>`).join('')}
       </tbody></table>
       <table class="rd"><tbody>
-        ${[['freq', 'Frequency (Hz)', '#38c8e6'], ['hours', 'Engine hours', '#b388ff'], ['kva', 'kVA now', '#ff9f1c'], ['pf', 'Power factor', '#ff6fb5'], ['vavg', 'Avg volts', '#ffd23f'], ['atot', 'Total amps', '#ff6b5b'], ['kwh', 'kWh made', '#6ea8ff'], ['run', 'Run time', '#d9b99b']].map(([k, l, c]) => `<tr><td><i class="ph" style="background:${c}"></i>${l}</td><td id="${g.id}-${k}" style="color:${c}">--</td></tr>`).join('')}
+        ${[['freq', 'Frequency (Hz)', '#38c8e6'], ['hours', 'Engine hours', '#b388ff'], ['kva', 'kVA now', '#ff9f1c'], ['pf', 'Power factor', '#ff6fb5']].map(([k, l, c]) => `<tr><td><i class="ph" style="background:${c}"></i>${l}</td><td id="${g.id}-${k}" style="color:${c}">--</td></tr>`).join('')}
       </tbody></table>
     </section>`).join('');
   GENS = s.generators;
@@ -371,7 +364,7 @@ async function refresh() {
     ? `<div class="nofuel">No fuel reading. Check that DIESEL (LITERS) is in the FUEL TANK group.</div>`
     : `<div><div class="lcd"><span class="big" style="${low ? 'color:var(--low);text-shadow:0 0 10px rgba(255,77,61,.5)' : ''}">${fmt(L, dp('fuel_l'))}</span><small>litres</small></div>
        <div class="sub">${pct != null ? fmt(pct, 0) + '% of ' + fmt(T) + ' L tank' : 'Tank size not set yet'}</div>
-       <div class="sub">Fuel counter ${fmt(v.fuel_counter, dp('fuel_counter'))}</div></div>`);
+       <div class="sub">Refuelling litres counter <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${fmt(v.fuel_counter, dp('fuel_counter'))}</b></div></div>`);
   if (hl != null && hl < s.site.lowFuelHours) alerts.push(['bad', 'Low fuel', 'About ' + fmt(hl, 1) + ' hours left at the current use.']);
   else if (pct != null && pct < 15) alerts.push(['bad', 'Low fuel', fmt(pct, 0) + '% left.']);
   $('burn').textContent = rate ? fmt(rate, 1) : '0';
@@ -407,10 +400,7 @@ async function refresh() {
     totKva += on && kva ? kva : 0;
     $(g.id + '-kva').textContent = on && kva != null ? fmt(kva, 1) : '--';
     $(g.id + '-pf').textContent = on && kva > 1 && kw != null ? fmt(Math.min(1, kw / kva), 2) : '--';
-    $(g.id + '-vavg').textContent = okp && on ? fmt(pv.reduce((a, b) => a + b) / 3, 0) : '--';
-    $(g.id + '-atot').textContent = okp && on ? fmt(pi.reduce((a, b) => a + b), 0) : '--';
     const e = energy(H, g.id); totKwh += e.kwh;
-    $(g.id + '-kwh').textContent = fmt(e.kwh, 0); $(g.id + '-run').textContent = dur(e.hrs);
     if (on) {
       const vs = [1, 2, 3].map(p => k('v' + p)).filter(x => x != null), is = [1, 2, 3].map(p => k('i' + p)).filter(x => x != null);
       if (vs.some(x => x < 207 || x > 253)) alerts.push(['warn', g.label + ' voltage out of range', 'Phase voltage outside 207 to 253 V.']);
@@ -560,20 +550,6 @@ function drawTrends() {
 }
 // Trends are hidden for now (the #trends block); to bring them back: show it and run  rangeBar(); loadHist(); setInterval(() => { if (!R.end) loadHist(); }, 30000);
 
-// ---- refuelling log: every rise of the fuel counter ----
-async function loadRefuels() {
-  let d; try { const r = await fetch('/api/refuels', { cache: 'no-store' }); if (!r.ok) throw 0; d = await r.json(); } catch (e) { return; }
-  const L = d.list, tot = L.reduce((a, r) => a + r.litres, 0), mins = r => Math.max(1, Math.round((r.end - r.start) / 60000));
-  $('rcnt').textContent = d.counter == null ? '--' : fmt(d.counter, 0);
-  $('rsum').innerHTML = L.length ? `<div><b>${fdt(L[0].start)}</b><span>Last refuel, +${fmt(L[0].litres, 0)} L</span></div><div><b>${L.length}</b><span>Refuels logged</span></div><div><b>${fmt(tot, 0)} L</b><span>Total added</span></div>` : '';
-  const o = $('ropen'); o.style.display = d.open ? 'block' : 'none';
-  if (d.open) o.innerHTML = `<b>Refuelling now</b> +${fmt(d.open.litres, 0)} L so far. Counter ${fmt(d.open.counterBefore, 0)} to ${fmt(d.open.counterAfter, 0)}, started ${fdt(d.open.start)}.`;
-  $('rlog').innerHTML = L.length ? '<thead><tr><th>Date and time</th><th>Counter before</th><th>Counter after</th><th>Litres added</th><th>Tank before / after</th></tr></thead><tbody>' +
-    L.map((r, i) => `<tr class="${i ? '' : 'new'}"><td>${fdt(r.start)}<small>${mins(r)} min, ended ${new Date(r.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small></td><td>${fmt(r.counterBefore, 0)}</td><td>${fmt(r.counterAfter, 0)}</td><td class="add">+${fmt(r.litres, 0)} L</td><td>${r.levelBefore == null ? '--' : fmt(r.levelBefore, 0)} / ${r.levelAfter == null ? '--' : fmt(r.levelAfter, 0)} L</td></tr>`).join('') + '</tbody>'
-    : '<tbody><tr><td style="text-align:left;color:var(--steel);font-family:Barlow,sans-serif;font-size:16px">No refuelling recorded yet. A line is added here each time the fuel counter goes up.</td></tr></tbody>';
-  $('rnote').textContent = 'Logging since ' + fdt(d.since) + '. A refuel is closed after 4 minutes with no further rise in the counter. The log is kept on the server; use Download CSV to keep your own copy.';
-}
-loadRefuels(); setInterval(loadRefuels, 15000);
 
 // ---- fuel level log: a line for every litre the tank level falls ----
 async function loadFuelLog() {
