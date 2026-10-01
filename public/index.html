@@ -295,7 +295,12 @@ function build(s) {
     <rect id="pfb-${g.id}" class="node" x="${gx(i) - 66}" y="100" width="132" height="58" rx="3"/>
     <circle cx="${gx(i) - 40}" cy="129" r="17" fill="none" stroke="#ffc21a" stroke-width="2.4"/>
     <text x="${gx(i) - 40}" y="136" text-anchor="middle" style="font-size:21px;font-weight:700;fill:#ffc21a">G</text>
-    <text class="k" x="${gx(i) - 15}" y="123">${g.label}</text><text class="v" id="pf-${g.id}" x="${gx(i) - 15}" y="146" style="font-size:16px">--</text>`).join('')}`;
+    <text class="k" x="${gx(i) - 15}" y="123">${g.label}</text><text class="v" id="pf-${g.id}" x="${gx(i) - 15}" y="146" style="font-size:16px">--</text>`).join('')}
+    <path id="pfl-solar" class="wire" d="M190 100V45"/>
+    <rect id="pfb-solar" class="node" x="124" y="100" width="132" height="58" rx="3"/>
+    <circle cx="150" cy="129" r="17" fill="none" stroke="#ffc21a" stroke-width="2.4"/>
+    <g stroke="#ffc21a" stroke-width="2" fill="none" stroke-linecap="round"><circle cx="150" cy="129" r="4.5"/><path d="M150 118v3M150 137v3M139 129h3M158 129h3M142.2 121.2l2 2M157.8 121.2l-2 2M142.2 136.8l2-2M157.8 136.8l-2-2"/></g>
+    <text class="k" x="175" y="123" style="font-size:11px;letter-spacing:0;text-transform:none">SOLAR 50 kWp</text><text class="v" id="pf-solar" x="175" y="146" style="font-size:16px">-- kW</text>`;
   built = true;
 }
 
@@ -406,7 +411,8 @@ async function refresh() {
   $('lpk').textContent = rate && tot > 20 ? fmt(rate / tot, 2) : '--';
   $('hwin').textContent = H.length > 1 ? dur((H[H.length - 1].t - H[0].t) / 36e5) : '--';
   $('totkw').textContent = fmt(tot, 1); $('totgens').textContent = running + ' of ' + s.generators.length;
-  if (running && busX != null) $('pfl-bus').setAttribute('d', 'M' + busX + ' 45H650'); wire('pfl-bus', running > 0); wire('pfl-load', tot > 1 && !running); $('pf-load').textContent = fmt(tot, 1) + ' kW';
+  const sol = v['solar.kw'], solOn = sol != null && sol > 1; wire('pfl-solar', solOn); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : fmt(sol, 0) + ' kW'; if (solOn) busX = 190;
+  if ((running || solOn) && busX != null) $('pfl-bus').setAttribute('d', 'M' + busX + ' 45H650'); wire('pfl-bus', running > 0 || solOn); wire('pfl-load', tot > 1 && !running && !solOn); $('pf-load').textContent = fmt(tot + (solOn ? sol : 0), 1) + ' kW';
 
   $('alerts').innerHTML = (alerts.length ? alerts : [['okay', 'No alerts', 'Everything reported is within normal range.']])
     .map(a => `<div class="alert ${a[0]}"><b>${a[1]}</b> ${a[2]}</div>`).join('');
