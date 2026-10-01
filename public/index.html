@@ -186,7 +186,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
     </section>
   </div>
 
-  <section class="panel"><h2>Power flow</h2><div class="flowwrap"><svg class="flow" id="flow" viewBox="0 0 800 165"></svg></div></section>
+  <section class="panel"><h2>Power flow</h2><div class="flowwrap"><svg class="flow" id="flow" viewBox="-24 0 824 165"></svg></div></section>
 
   <div class="gens" id="gens"></div>
 
@@ -282,11 +282,8 @@ function build(s) {
   // single-line power flow: mains -> busbar -> load, generators feed the busbar from below
   const n = s.generators.length, gx = i => 190 + (i + 1) * 420 / (n + 1); GX = s.generators.map((g, i) => gx(i));
   $('flow').innerHTML = `
-    <path id="pfl-edl" class="wire" d="M150 45H190"/><path id="pfl-load" class="wire" d="M610 45H650"/>
-    <path class="bus" d="M190 45H610"/><path id="pfl-bus" class="wire" d="M190 45H650"/>
-    <rect class="node" x="10" y="12" width="140" height="66" rx="3"/>
-    <g stroke="#ffc21a" stroke-width="2" fill="none" stroke-linecap="round"><path d="M38 20 27 72M38 20l11 52M31 34h14M29 47h18M31 34l14 13M45 34 31 47"/></g>
-    <text class="k" x="62" y="38">EDL mains</text><text class="v" id="pf-edl" x="62" y="62">--</text>
+    <path id="pfl-load" class="wire" d="M610 45H650"/>
+    <path class="bus" d="M50 45H610"/><path id="pfl-bus" class="wire" d="M50 45H650"/>
     <rect class="node" x="650" y="12" width="140" height="66" rx="3"/>
     <path d="M672 22 664 46h9l-3 22 15-28h-9l4-18z" fill="#ffc21a"/>
     <text class="k" x="694" y="38">Site load</text><text class="v" id="pf-load" x="694" y="62">--</text>
@@ -300,7 +297,12 @@ function build(s) {
     <rect id="pfb-solar" class="node" x="124" y="100" width="132" height="58" rx="3"/>
     <circle cx="150" cy="129" r="17" fill="none" stroke="#ffc21a" stroke-width="2.4"/>
     <g stroke="#ffc21a" stroke-width="2" fill="none" stroke-linecap="round"><circle cx="150" cy="129" r="4.5"/><path d="M150 118v3M150 137v3M139 129h3M158 129h3M142.2 121.2l2 2M157.8 121.2l-2 2M142.2 136.8l2-2M157.8 136.8l-2-2"/></g>
-    <text class="k" x="175" y="123" style="font-size:11px;letter-spacing:0;text-transform:none">SOLAR 50 kWp</text><text class="v" id="pf-solar" x="175" y="146" style="font-size:16px">-- kW</text>`;
+    <text class="k" x="175" y="123" style="font-size:11px;letter-spacing:0;text-transform:none">SOLAR 50 kWp</text><text class="v" id="pf-solar" x="175" y="146" style="font-size:16px">-- kW</text>
+    <path id="pfl-edl" class="wire" d="M50 100V45"/>
+    <rect id="pfb-edl" class="node" x="-16" y="100" width="132" height="58" rx="3"/>
+    <circle cx="10" cy="129" r="17" fill="none" stroke="#ffc21a" stroke-width="2.4"/>
+    <g transform="translate(10 129) scale(.45) translate(-38 -46)" stroke="#ffc21a" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M38 20 27 72M38 20l11 52M31 34h14M29 47h18M31 34l14 13M45 34 31 47"/></g>
+    <text class="k" x="35" y="123" style="font-size:12px">EDL mains</text><text class="v" id="pf-edl" x="35" y="146" style="font-size:16px">--</text>`;
   built = true;
 }
 
@@ -370,7 +372,7 @@ async function refresh() {
   const edl = v.edl;
   $('mains').textContent = edl == null ? '--' : edl ? 'On' : 'Off';
   const wire = (id, live, extra) => { const e = $(id); if (e) e.setAttribute('class', 'wire' + (live ? ' live' + (extra || '') : '')); };
-  wire('pfl-edl', edl === 1, ' mains'); $('pf-edl').textContent = edl == null ? '--' : edl ? 'ON' : 'OFF';
+  wire('pfl-edl', edl === 1, ' mains'); $('pfb-edl').setAttribute('class', 'node' + (edl === 1 ? ' on' : '')); $('pf-edl').textContent = edl == null ? '--' : edl ? 'ON' : 'OFF';
 
   // generators
   let tot = 0, running = 0, totKva = 0, totKwh = 0, busX = null;
@@ -411,8 +413,8 @@ async function refresh() {
   $('lpk').textContent = rate && tot > 20 ? fmt(rate / tot, 2) : '--';
   $('hwin').textContent = H.length > 1 ? dur((H[H.length - 1].t - H[0].t) / 36e5) : '--';
   $('totkw').textContent = fmt(tot, 1); $('totgens').textContent = running + ' of ' + s.generators.length;
-  const sol = v['solar.kw'], solOn = sol != null && sol > 1; wire('pfl-solar', solOn); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : fmt(sol, 0) + ' kW'; if (solOn) busX = 190;
-  if ((running || solOn) && busX != null) $('pfl-bus').setAttribute('d', 'M' + busX + ' 45H650'); wire('pfl-bus', running > 0 || solOn); wire('pfl-load', tot > 1 && !running && !solOn); $('pf-load').textContent = fmt(tot + (solOn ? sol : 0), 1) + ' kW';
+  const sol = v['solar.kw'], solOn = sol != null && sol > 1; wire('pfl-solar', solOn); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : fmt(sol, 0) + ' kW'; if (solOn) busX = 190; const edlOn = edl === 1; if (edlOn) busX = 50;
+  if ((running || solOn || edlOn) && busX != null) $('pfl-bus').setAttribute('d', 'M' + busX + ' 45H650'); wire('pfl-bus', running > 0 || solOn || edlOn, running || solOn ? '' : ' mains'); wire('pfl-load', false); $('pf-load').textContent = fmt(tot + (solOn ? sol : 0), 1) + ' kW';
 
   $('alerts').innerHTML = (alerts.length ? alerts : [['okay', 'No alerts', 'Everything reported is within normal range.']])
     .map(a => `<div class="alert ${a[0]}"><b>${a[1]}</b> ${a[2]}</div>`).join('');
