@@ -209,15 +209,6 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
   </div>
   </div>
 
-  <section class="panel" id="flog" style="margin-bottom:14px">
-    <div class="chead"><h2>Fuel level log</h2><span style="display:flex;gap:8px"><button class="btn" id="fltog" type="button" style="border:0;cursor:pointer">Open log</button><a class="btn" href="/api/fuellog.csv">Download CSV</a></span></div>
-    <div id="flbody" style="display:none">
-    <div class="rtop"><div class="lcd"><span class="big" id="flvl">--</span><small>litres now</small></div><div class="rsum" id="fsum"></div></div>
-    <div class="tscroll"><table class="rlog" id="flogt"></table></div>
-    <div class="sub" id="fnote"></div>
-    </div>
-  </section>
-
   <section class="panel"><h2>Power house details</h2><dl id="details"></dl></section>
   <footer id="foot"></footer>
 </div>
@@ -549,23 +540,6 @@ function drawTrends() {
   $('rangelbl').textContent = fdt(HD.from) + '  to  ' + fdt(HD.to) + (HD.since && HD.since > HD.from ? '   (history starts ' + fdt(HD.since) + ')' : '');
 }
 // Trends are hidden for now (the #trends block); to bring them back: show it and run  rangeBar(); loadHist(); setInterval(() => { if (!R.end) loadHist(); }, 30000);
-
-
-// ---- fuel level log: a line for every litre the tank level falls ----
-async function loadFuelLog() {
-  let d; try { const r = await fetch('/api/fuellog', { cache: 'no-store' }); if (!r.ok) throw 0; d = await r.json(); } catch (e) { return; }
-  const L = d.list, tm = t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const dur = s => s >= 3600 ? Math.floor(s / 3600) + 'h ' + String(Math.round(s % 3600 / 60)).padStart(2, '0') + 'm' : s >= 60 ? Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's' : s + 's';
-  $('flvl').textContent = d.level == null ? '--' : fmt(d.level, 1);
-  const last = L[0], rates = L.slice(0, 20).map(r => r.lph).filter(x => x != null), avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null;
-  $('fsum').innerHTML = L.length ? `<div><b>${fdt(last.t)}</b><span>Last line</span></div><div><b>${fmt(d.total)}</b><span>Hourly lines logged</span></div>` : '';
-  $('flogt').innerHTML = L.length ? '<thead><tr><th>Date and time</th><th>Tank level</th><th>Used since previous line</th><th>Average load</th></tr></thead><tbody>' +
-    L.map((r, i) => `<tr class="${i ? '' : 'new'}"><td>${fdt(r.t)}<small>${tm(r.t)}</small></td><td>${fmt(r.level, 1)} L</td><td class="add">${r.drop == null ? '--' : r.drop >= 0 ? fmt(r.drop, 1) + ' L' : '+' + fmt(-r.drop, 1) + ' L (refuel)'}</td><td>${fmt(r.kw, 1)} kW</td></tr>`).join('') + '</tbody>'
-    : '<tbody><tr><td style="text-align:left;color:var(--steel);font-family:Barlow,sans-serif;font-size:16px">No line yet. One is added every hour.</td></tr></tbody>';
-  $('fnote').textContent = 'Logging since ' + fdt(d.since) + '. One line every hour, on the hour. Used = litres the tank level fell since the previous line; if the level went up (refuelling) it shows the rise. Load is the average over that hour. Showing the latest 300 lines; Download CSV has everything kept on the server.';
-}
-$('fltog').onclick = () => { const b = $('flbody'), open = b.style.display === 'none'; b.style.display = open ? 'block' : 'none'; $('fltog').textContent = open ? 'Close log' : 'Open log'; if (open) loadFuelLog(); };
-setInterval(() => { if ($('flbody').style.display !== 'none') loadFuelLog(); }, 15000);
 
 function setStatus(c, t) { $('status').className = 'status ' + c; $('statustext').textContent = t; }
 refresh(); setInterval(refresh, 5000);
