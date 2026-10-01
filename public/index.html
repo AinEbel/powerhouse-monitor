@@ -218,7 +218,7 @@ const $ = id => document.getElementById(id);
 const fmt = (v, d = 0) => v == null || isNaN(v) ? '--' : Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const COL = ['var(--g1)', 'var(--g2)'];
 const PH = ['#d9452f', '#e6b800', '#3f83e0'];
-let built = false, GENS = [];
+let built = false, GENS = [], GX = [];
 
 const dur = h => h == null ? '--' : h < 1 ? Math.round(h * 60) + ' min' : Math.floor(h) + 'h ' + String(Math.round(h % 1 * 60)).padStart(2, '0') + 'm';
 function energy(H, id) {              // kWh and running hours from history samples (gaps over 10 min ignored)
@@ -280,10 +280,10 @@ function build(s) {
   GENS = s.generators;
   if (HD) drawTrends();
   // single-line power flow: mains -> busbar -> load, generators feed the busbar from below
-  const n = s.generators.length, gx = i => 190 + (i + 1) * 420 / (n + 1);
+  const n = s.generators.length, gx = i => 190 + (i + 1) * 420 / (n + 1); GX = s.generators.map((g, i) => gx(i));
   $('flow').innerHTML = `
     <path id="pfl-edl" class="wire" d="M150 45H190"/><path id="pfl-load" class="wire" d="M610 45H650"/>
-    <path class="bus" d="M190 45H610"/>
+    <path class="bus" d="M190 45H610"/><path id="pfl-bus" class="wire" d="M190 45H650"/>
     <rect class="node" x="10" y="12" width="140" height="66" rx="3"/>
     <g stroke="#ffc21a" stroke-width="2" fill="none" stroke-linecap="round"><path d="M38 20 27 72M38 20l11 52M31 34h14M29 47h18M31 34l14 13M45 34 31 47"/></g>
     <text class="k" x="62" y="38">EDL mains</text><text class="v" id="pf-edl" x="62" y="62">--</text>
@@ -291,7 +291,7 @@ function build(s) {
     <path d="M672 22 664 46h9l-3 22 15-28h-9l4-18z" fill="#ffc21a"/>
     <text class="k" x="694" y="38">Site load</text><text class="v" id="pf-load" x="694" y="62">--</text>
     ${s.generators.map((g, i) => `
-    <path id="pfl-${g.id}" class="wire" d="M${gx(i)} 49V100"/>
+    <path id="pfl-${g.id}" class="wire" d="M${gx(i)} 100V45"/>
     <rect id="pfb-${g.id}" class="node" x="${gx(i) - 66}" y="100" width="132" height="58" rx="3"/>
     <circle cx="${gx(i) - 40}" cy="129" r="17" fill="none" stroke="#ffc21a" stroke-width="2.4"/>
     <text x="${gx(i) - 40}" y="136" text-anchor="middle" style="font-size:21px;font-weight:700;fill:#ffc21a">G</text>
@@ -368,11 +368,11 @@ async function refresh() {
   wire('pfl-edl', edl === 1, ' mains'); $('pf-edl').textContent = edl == null ? '--' : edl ? 'ON' : 'OFF';
 
   // generators
-  let tot = 0, running = 0, totKva = 0, totKwh = 0;
+  let tot = 0, running = 0, totKva = 0, totKwh = 0, busX = null;
   s.generators.forEach(g => {
     const k = n => v[g.id + '.' + n], kw = k('kw'), st = k('status');
     const on = st != null ? st === 1 : kw != null && kw > 1;
-    if (on) running++; if (kw != null) tot += kw;
+    if (on) { running++; const gi = s.generators.indexOf(g); if (GX[gi] != null && (busX == null || GX[gi] < busX)) busX = GX[gi]; } if (kw != null) tot += kw;
     $(g.id + '-svg').setAttribute('class', 'gset' + (on ? ' on' : ''));
     wire('pfl-' + g.id, on); $('pfb-' + g.id).setAttribute('class', 'node' + (on ? ' on' : ''));
     $('pf-' + g.id).textContent = !on ? 'STOPPED' : fmt(kw, 0) + ' kW';
@@ -406,7 +406,7 @@ async function refresh() {
   $('lpk').textContent = rate && tot > 20 ? fmt(rate / tot, 2) : '--';
   $('hwin').textContent = H.length > 1 ? dur((H[H.length - 1].t - H[0].t) / 36e5) : '--';
   $('totkw').textContent = fmt(tot, 1); $('totgens').textContent = running + ' of ' + s.generators.length;
-  wire('pfl-load', tot > 1); $('pf-load').textContent = fmt(tot, 1) + ' kW';
+  if (running && busX != null) $('pfl-bus').setAttribute('d', 'M' + busX + ' 45H650'); wire('pfl-bus', running > 0); wire('pfl-load', tot > 1 && !running); $('pf-load').textContent = fmt(tot, 1) + ' kW';
 
   $('alerts').innerHTML = (alerts.length ? alerts : [['okay', 'No alerts', 'Everything reported is within normal range.']])
     .map(a => `<div class="alert ${a[0]}"><b>${a[1]}</b> ${a[2]}</div>`).join('');
