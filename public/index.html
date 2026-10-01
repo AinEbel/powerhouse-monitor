@@ -185,6 +185,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
 
   <div class="gens" id="gens"></div>
 
+  <div id="trends" style="display:none">
   <section class="panel" style="margin-bottom:14px"><h2>Trends</h2>
     <div class="rangebar" id="rangebar"></div>
     <div class="sub" id="rangelbl" style="margin-top:10px"></div>
@@ -200,6 +201,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
       <div class="cwrap"><svg class="trend" id="cFuel" viewBox="0 0 460 220"></svg><div class="tip" id="cFuel-tip"></div></div>
       <table class="stats" id="sFuel"></table>
     </section>
+  </div>
   </div>
 
   <section class="panel" id="flog" style="margin-bottom:14px">
@@ -543,7 +545,7 @@ function drawTrends() {
   }
   $('rangelbl').textContent = fdt(HD.from) + '  to  ' + fdt(HD.to) + (HD.since && HD.since > HD.from ? '   (history starts ' + fdt(HD.since) + ')' : '');
 }
-rangeBar(); loadHist(); setInterval(() => { if (!R.end) loadHist(); }, 30000);
+// Trends are hidden for now (the #trends block); to bring them back: show it and run  rangeBar(); loadHist(); setInterval(() => { if (!R.end) loadHist(); }, 30000);
 
 // ---- refuelling log: every rise of the fuel counter ----
 async function loadRefuels() {
