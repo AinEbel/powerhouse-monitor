@@ -50,7 +50,11 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .sub{color:var(--steel);font-size:16px;margin-top:8px}
 .nofuel{color:var(--steel);font-size:16px;line-height:1.4;max-width:34ch}
 .tankrow{display:flex;flex-direction:column-reverse;gap:14px;align-items:stretch}
-.tankrow svg{width:100%;max-width:760px;height:auto;margin:0 auto}
+.tankwrap{width:100%;max-width:760px;margin:0 auto}
+.tankwrap svg{width:100%;height:auto;display:block}
+.tkhead{display:flex;align-items:baseline;gap:16px;margin:0 0 6px 4px}
+.tkhead span{font:600 24px "Barlow Condensed",sans-serif;letter-spacing:.25em;text-transform:uppercase;color:var(--steel)}
+.tkhead b{font:400 46px "Share Tech Mono",monospace}
 .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 16px}
 .kv>div{display:flex;gap:12px;align-items:center}
 .ic{width:42px;height:42px;flex:none;padding:8px;background:#0c0f11;border:1px solid #3a444b;border-radius:3px;stroke:var(--yellow);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -314,26 +318,26 @@ const tankSvg = (pct, low, T) => {
   const Y0 = 220, HH = 190, y = p => Y0 - p * HH / 100, col = low ? 'var(--low)' : 'var(--fuel)';
   let ticks = '', grid = '';
   for (let p = 0; p <= 100; p += 10) {
-    ticks += `<text x="40" y="${y(p) + 4}" text-anchor="end" style="font-family:'Barlow Condensed';font-size:15px;fill:#8d9aa3">${p}%</text><path d="M46 ${y(p)}h12" stroke="#8d9aa3" stroke-width="2"/>`;
-    if (p > 0 && p < 100) grid += `<path d="M64 ${y(p)}h500" stroke="#0d1012" stroke-width="1.5" opacity=".45"/>`;
+    ticks += `<text x="40" y="${y(p) + 5}" text-anchor="end" style="font-family:'Barlow Condensed';font-size:15px;fill:#8d9aa3">${p}%</text><path d="M46 ${y(p)}h12" stroke="#8d9aa3" stroke-width="2"/>`;
+    if (p > 0 && p < 100) grid += `<path d="M84 ${y(p)}h500" stroke="#0d1012" stroke-width="1.5" opacity=".45"/>`;
   }
   return `
-<svg viewBox="0 0 600 262" role="img" aria-label="Diesel tank level">
-  <defs><clipPath id="tk"><rect x="64" y="30" width="500" height="190" rx="64"/></clipPath></defs>
-  <path d="M130 216l-14 36h54l-8-36zM458 216l-8 36h54l-14-36z" fill="#2f383e" stroke="#59646c" stroke-width="2"/>
-  <path d="M40 254h540" stroke="#4a555c" stroke-width="3"/>
-  <rect x="290" y="12" width="48" height="18" fill="#59646c" stroke="#3a444b"/><rect x="284" y="6" width="60" height="8" rx="2" fill="#8d9aa3"/>
-  <rect x="64" y="30" width="500" height="190" rx="64" fill="#1a2024" stroke="#8d9aa3" stroke-width="4"/>
-  <g clip-path="url(#tk)"><rect x="60" y="${y(pct)}" width="510" height="${pct * HH / 100 + 4}" fill="${col}" opacity=".92"/>
-    <path d="M${y(pct) < 218 ? 64 : 0} ${y(pct)}h500" stroke="#fff" stroke-width="3" opacity=".35"/>
+<div class="tankwrap">
+<div class="tkhead"><span>Diesel</span><b style="color:${low ? 'var(--low)' : 'var(--fuel)'}">${fmt(pct, 0)}%</b></div>
+<svg viewBox="0 0 620 262" role="img" aria-label="Diesel tank level">
+  <defs><clipPath id="tk"><rect x="84" y="30" width="500" height="190" rx="64"/></clipPath></defs>
+  <path d="M150 216l-14 36h54l-8-36zM478 216l-8 36h54l-14-36z" fill="#2f383e" stroke="#59646c" stroke-width="2"/>
+  <path d="M60 254h540" stroke="#4a555c" stroke-width="3"/>
+  <rect x="310" y="12" width="48" height="18" fill="#59646c" stroke="#3a444b"/><rect x="304" y="6" width="60" height="8" rx="2" fill="#8d9aa3"/>
+  <rect x="84" y="30" width="500" height="190" rx="64" fill="#1a2024" stroke="#8d9aa3" stroke-width="4"/>
+  <g clip-path="url(#tk)"><rect x="80" y="${y(pct)}" width="510" height="${pct * HH / 100 + 4}" fill="${col}" opacity=".92"/>
+    <path d="M84 ${y(pct)}h500" stroke="#fff" stroke-width="3" opacity=".35"/>
     ${grid}
-    <path d="M190 30v190M314 30v190M438 30v190" stroke="#0d1012" stroke-width="4" opacity=".5"/>
-    <rect x="64" y="36" width="500" height="12" fill="#fff" opacity=".12"/></g>
+    <rect x="84" y="36" width="500" height="12" fill="#fff" opacity=".12"/></g>
   ${ticks}
-  <path d="M52 ${y(pct) - 8}l-14 8 14 8z" fill="#ffc21a" stroke="#8f6a00" stroke-width="1.5"/>
-  <text x="314" y="108" text-anchor="middle" style="font-family:'Barlow Condensed';font-size:22px;letter-spacing:.25em;fill:#fff;opacity:.9;paint-order:stroke;stroke:#000;stroke-width:3px">DIESEL</text>
-  <text x="314" y="168" text-anchor="middle" style="font-family:'Share Tech Mono';font-size:64px;fill:#fff;paint-order:stroke;stroke:#000;stroke-width:6px">${fmt(pct, 0)}%</text>
-</svg>`;
+  <path d="M62 ${y(pct) - 8}l16 8-16 8z" fill="#ffc21a" stroke="#8f6a00" stroke-width="1.5"/>
+</svg>
+</div>`;
 };
 
 async function refresh() {
