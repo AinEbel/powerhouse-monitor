@@ -173,15 +173,10 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
       <h2>Plant total</h2>
       <div class="kv">
         <div><svg class="ic"><use href="#i-bolt"/></svg><div><b id="totkw">--</b><span>Power now (kW)</span></div></div>
-        <div><svg class="ic"><use href="#i-gen"/></svg><div><b id="totgens">--</b><span>Generators running</span></div></div>
-        <div><svg class="ic"><use href="#i-mains"/></svg><div><b id="mains">--</b><span>Mains (EDL)</span></div></div>
-        <div><svg class="ic"><use href="#i-drop"/></svg><div><b id="burn">--</b><span>Fuel use (L/h) = kW × 0.278</span></div></div>
-        <div><svg class="ic"><use href="#i-clock"/></svg><div><b id="left">--</b><span>Fuel left at this rate</span></div></div>
         <div><svg class="ic"><use href="#i-bolt"/></svg><div><b id="totkva">--</b><span>Apparent power (kVA)</span></div></div>
         <div><svg class="ic"><use href="#i-gen"/></svg><div><b id="totpf">--</b><span>Power factor</span></div></div>
-        <div><svg class="ic"><use href="#i-bolt"/></svg><div><b id="totkwh">--</b><span>Energy made (kWh)</span></div></div>
-        <div><svg class="ic"><use href="#i-drop"/></svg><div><b id="lpk">--</b><span>Fuel per kWh (L)</span></div></div>
-        <div><svg class="ic"><use href="#i-clock"/></svg><div><b id="hwin">--</b><span>Measured over</span></div></div>
+        <div><svg class="ic"><use href="#i-drop"/></svg><div><b id="burn">--</b><span>Fuel use (L/h) = kW × 0.278</span></div></div>
+        <div><svg class="ic"><use href="#i-clock"/></svg><div><b id="left">--</b><span>Fuel left at this rate</span></div></div>
       </div>
     </section>
   </div>
@@ -370,7 +365,6 @@ async function refresh() {
 
   // mains (EDL)
   const edl = v.edl;
-  $('mains').textContent = edl == null ? '--' : edl ? 'On' : 'Off';
   const wire = (id, live, extra) => { const e = $(id); if (e) e.setAttribute('class', 'wire' + (live ? ' live' + (extra || '') : '')); };
   wire('pfl-edl', edl === 1, ' mains'); $('pfb-edl').setAttribute('class', 'node' + (edl === 1 ? ' on' : '')); $('pf-edl').textContent = edl == null ? '--' : edl ? 'ON' : 'OFF';
 
@@ -409,10 +403,7 @@ async function refresh() {
   });
   $('totkva').textContent = running ? fmt(totKva, 1) : '--';
   $('totpf').textContent = running && totKva > 1 ? fmt(Math.min(1, tot / totKva), 2) : '--';
-  $('totkwh').textContent = fmt(totKwh, 0);
-  $('lpk').textContent = rate && tot > 20 ? fmt(rate / tot, 2) : '--';
-  $('hwin').textContent = H.length > 1 ? dur((H[H.length - 1].t - H[0].t) / 36e5) : '--';
-  $('totkw').textContent = fmt(tot, 1); $('totgens').textContent = running + ' of ' + s.generators.length;
+  $('totkw').textContent = fmt(tot, 1);
   const sol = v['solar.kw'], solOn = sol != null && sol > 1; wire('pfl-solar', solOn); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : fmt(sol, 0) + ' kW'; if (solOn) busX = 190; const edlOn = edl === 1; if (edlOn) busX = 50;
   if ((running || solOn || edlOn) && busX != null) $('pfl-bus').setAttribute('d', 'M' + busX + ' 45H650'); wire('pfl-bus', running > 0 || solOn || edlOn, running || solOn ? '' : ' mains'); wire('pfl-load', false); $('pf-load').textContent = fmt(tot + (solOn ? sol : 0), 1) + ' kW';
 
