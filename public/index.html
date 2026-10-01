@@ -274,7 +274,7 @@ function build(s) {
         ${[1, 2, 3].map(p => `<tr><td><i class="ph" style="background:${PH[p - 1]}"></i>L${p}</td><td id="${g.id}-v${p}">--</td><td id="${g.id}-i${p}">--</td></tr>`).join('')}
       </tbody></table>
       <table class="rd"><tbody>
-        ${[['freq', 'Frequency (Hz)', '#38c8e6'], ['hours', 'Engine hours', '#b388ff'], ['kva', 'kVA now', '#ff9f1c'], ['pf', 'Power factor', '#ff6fb5']].map(([k, l, c]) => `<tr><td><i class="ph" style="background:${c}"></i>${l}</td><td id="${g.id}-${k}" style="color:${c}">--</td></tr>`).join('')}
+        ${[['freq', 'Frequency (Hz)', '#38c8e6'], ['hours', 'Engine hours', '#b388ff'], ['kva', 'kVA now', '#ff9f1c'], ['pf', 'Power factor', '#ff6fb5']].map(([k, l, c]) => `<tr><td><i class="ph" style="background:${c}"></i>${l}</td><td id="${g.id}-${k}">--</td></tr>`).join('')}
       </tbody></table>
     </section>`).join('');
   GENS = s.generators;
