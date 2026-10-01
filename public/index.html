@@ -45,7 +45,8 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 @media(max-width:840px){.top,.gens,.charts{grid-template-columns:1fr}h1{font-size:26px}}
 .lcd{display:inline-block;background:var(--lcd);border:2px solid #040506;box-shadow:inset 0 0 12px #000,0 1px 0 #3d484f;border-radius:3px;padding:8px 14px 6px}
 .big{font-family:"Share Tech Mono",monospace;color:var(--fuel);text-shadow:0 0 10px rgba(255,159,26,.45);font-size:54px;line-height:1;letter-spacing:.02em}
-.gens .big{color:var(--yellow);text-shadow:0 0 10px rgba(255,194,26,.4)}
+.gens .big{color:#3ddc84;text-shadow:0 0 10px rgba(61,220,132,.4)}
+.rd{margin-top:14px}
 .lcd small{font-family:"Barlow Condensed";font-size:20px;color:var(--steel);margin-left:8px;letter-spacing:.06em;text-transform:uppercase}
 .sub{color:var(--steel);font-size:16px;margin-top:8px}
 .nofuel{color:var(--steel);font-size:16px;line-height:1.4;max-width:34ch}
@@ -288,9 +289,9 @@ function build(s) {
       <table><thead><tr><th></th><th>Volts</th><th>Amps</th></tr></thead><tbody>
         ${[1, 2, 3].map(p => `<tr><td><i class="ph" style="background:${PH[p - 1]}"></i>L${p}</td><td id="${g.id}-v${p}">--</td><td id="${g.id}-i${p}">--</td></tr>`).join('')}
       </tbody></table>
-      <div class="mini"><div><b id="${g.id}-freq">--</b><span>Hz</span></div><div><b id="${g.id}-hours">--</b><span>Engine hours</span></div></div>
-      <div class="mini"><div><b id="${g.id}-kva">--</b><span>kVA now</span></div><div><b id="${g.id}-pf">--</b><span>Power factor</span></div><div><b id="${g.id}-vavg">--</b><span>Avg volts</span></div></div>
-      <div class="mini"><div><b id="${g.id}-atot">--</b><span>Total amps</span></div><div><b id="${g.id}-kwh">--</b><span>kWh made</span></div><div><b id="${g.id}-run">--</b><span>Run time</span></div></div>
+      <table class="rd"><tbody>
+        ${[['freq', 'Frequency (Hz)', '#38c8e6'], ['hours', 'Engine hours', '#b388ff'], ['kva', 'kVA now', '#ff9f1c'], ['pf', 'Power factor', '#ff6fb5'], ['vavg', 'Avg volts', '#ffd23f'], ['atot', 'Total amps', '#ff6b5b'], ['kwh', 'kWh made', '#6ea8ff'], ['run', 'Run time', '#d9b99b']].map(([k, l, c]) => `<tr><td><i class="ph" style="background:${c}"></i>${l}</td><td id="${g.id}-${k}" style="color:${c}">--</td></tr>`).join('')}
+      </tbody></table>
     </section>`).join('');
   GENS = s.generators;
   if (HD) drawTrends();
