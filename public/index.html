@@ -393,7 +393,7 @@ async function refresh() {
     const nt = $('alarmnote'), pk = String(s.alarm.push);
     if (nt.dataset.push !== pk) { nt.dataset.push = pk; nt.innerHTML = s.alarm.push ? 'Phone notification: <b>ON</b> <button id="alarmtest" type="button">Send test</button>' : 'Phone notification: not set up yet'; }
   }
-  if (alarm) { $('lowalarm').innerHTML = '<b>Fuel level alarm</b>' + fmt(L, 0) + ' L left, below your alarm level of ' + fmt(lowAt, 0) + ' L.'; alerts.unshift(['bad', 'Fuel level alarm', fmt(L, 0) + ' L left, below your alarm level of ' + fmt(lowAt, 0) + ' L.']); }
+  if (alarm) { $('lowalarm').innerHTML = '<div style="font-family:Barlow Condensed;font-weight:600;letter-spacing:.14em;color:#ffb3a8;font-size:16px">AL DHOUR POWER PLANT</div><div style="font-family:Barlow Condensed;font-weight:700;letter-spacing:.1em;color:#ff6a58;font-size:30px;line-height:1.1">LOW FUEL ALARM</div><div>' + fmt(L, 0) + ' L left, below your alarm level of ' + fmt(lowAt, 0) + ' L.</div>'; alerts.unshift(['bad', 'AL DHOUR POWER PLANT - LOW FUEL ALARM', fmt(L, 0) + ' L left, below your alarm level of ' + fmt(lowAt, 0) + ' L.']); }
   $('fuelbody').innerHTML = (pct == null ? '' : tankSvg(pct, low, T)) + (L == null
     ? `<div class="nofuel">No fuel reading. Check that DIESEL (LITERS) is in the FUEL TANK group.</div>`
     : `<div><div class="lcd"><span class="big" style="${low ? 'color:var(--low);text-shadow:0 0 10px rgba(255,77,61,.5)' : ''}">${fmt(L, dp('fuel_l'))}</span><small>litres</small></div>
