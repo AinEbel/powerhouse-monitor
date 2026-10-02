@@ -217,6 +217,14 @@ function checkFuelAlarm(v) {                         // one message when the lev
 // the free Render plan sleeps when nobody visits; while notifications are on, visit our own address so the alarm keeps being checked
 if (PUSH_ON && E.RENDER_EXTERNAL_URL) setInterval(() => { fetch(E.RENDER_EXTERNAL_URL + '/api/status').catch(() => {}); }, 10 * 60 * 1000);
 
+// ---------- Who is online: every open page asks for /api/status?v=<random id> every few seconds ----------
+const viewers = new Map();
+function onlineCount() {
+  const now = Date.now(); let n = 0;
+  for (const [id, t] of viewers) { if (now - t > 60000) viewers.delete(id); else if (now - t < 20000) n++; }
+  return n;
+}
+
 // ---------- Poll loop ----------
 let polling = false;
 async function poll() {
@@ -341,6 +349,8 @@ http.createServer((req, res) => {
     return;
   }
   if (url === '/api/status') {
+    const vid = (new URL(req.url, 'http://x').searchParams.get('v') || '');
+    if (/^[a-z0-9]{6,24}$/.test(vid)) viewers.set(vid, Date.now());
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     const s = cfg.site;
     return res.end(JSON.stringify({
@@ -348,7 +358,7 @@ http.createServer((req, res) => {
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })),
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
-      alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
+      online: onlineCount(), alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
     }));
   }
   const file = path.join(__dirname, 'public', url === '/' ? 'index.html' : url);
