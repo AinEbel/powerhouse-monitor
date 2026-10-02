@@ -66,6 +66,7 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .alarmset input{width:110px;background:#0c1012;border:1px solid #4a555c;border-radius:3px;color:var(--fuel);font-family:"Share Tech Mono",monospace;font-size:24px;padding:4px 8px;text-align:right}
 .alarmset input:focus{outline:2px solid #ffc21a;outline-offset:1px}
 .lowalarm{margin:0 0 12px;padding:10px 14px;border:2px solid var(--low);border-left-width:8px;background:#2a1a19;color:#ffd9d4;font-size:17px;animation:alarmblink 1s steps(2,start) infinite}
+.alarmnote{margin-top:8px;color:var(--steel);font-size:15px}.alarmnote b{color:var(--ok);font-family:"Barlow Condensed";letter-spacing:.08em}.alarmnote button{margin-left:10px;background:#12171a;border:1px solid #4a555c;border-radius:3px;color:var(--ink);font-size:14px;padding:3px 10px;cursor:pointer}.alarmnote button:disabled{opacity:.6;cursor:default}
 .lowalarm[hidden]{display:none}.lowalarm b{font-family:"Barlow Condensed";text-transform:uppercase;letter-spacing:.08em;font-size:20px;color:#ff6a58;margin-right:8px}
 @keyframes alarmblink{50%{background:#4a1612;border-color:#ff6a58}}
 @media (prefers-reduced-motion:reduce){.lowalarm{animation:none}}
@@ -182,6 +183,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
       <div class="lowalarm" id="lowalarm" role="alert" hidden></div>
       <div class="tankrow" id="fuelbody"></div>
       <div class="alarmset"><label for="lowset">Low fuel alarm below</label><input id="lowset" type="number" inputmode="numeric" min="0" max="4000" step="50" value="800"><span>litres</span></div>
+      <div class="alarmnote" id="alarmnote"></div>
     </section>
     <section class="panel" style="display:flex;flex-direction:column">
       <h2>Plant total</h2>
@@ -240,7 +242,9 @@ const COL = ['var(--g1)', 'var(--g2)'];
 const PH = ['#d9452f', '#e6b800', '#3f83e0'];
 let built = false, GENS = [], GX = [];
 try { const sv = localStorage.getItem('lowFuelL'); if (sv !== null && sv !== '') $('lowset').value = sv; } catch (e) {}
-$('lowset').addEventListener('input', () => { try { localStorage.setItem('lowFuelL', $('lowset').value); } catch (e) {} refresh(); });
+const pushAlarm = body => fetch('/api/alarm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || { litres: Number($('lowset').value) || 0 }) }).then(r => r.json()).catch(() => null);
+$('lowset').addEventListener('input', () => { try { localStorage.setItem('lowFuelL', $('lowset').value); } catch (e) {} refresh(); clearTimeout(window.__alT); window.__alT = setTimeout(() => pushAlarm(), 900); });
+$('alarmnote').addEventListener('click', async e => { if (e.target.id !== 'alarmtest') return; e.target.disabled = true; e.target.textContent = 'Sending...'; const r = await pushAlarm({ test: true }); e.target.textContent = r && r.ok ? 'Sent - check your phone' : 'Could not send'; setTimeout(() => { e.target.disabled = false; e.target.textContent = 'Send test'; }, 4000); });
 
 const dur = h => h == null ? '--' : h < 1 ? Math.round(h * 60) + ' min' : Math.floor(h) + 'h ' + String(Math.round(h % 1 * 60)).padStart(2, '0') + 'm';
 function energy(H, id) {              // kWh and running hours from history samples (gaps over 10 min ignored)
@@ -382,6 +386,11 @@ async function refresh() {
   const lowAt = parseFloat($('lowset').value), alarm = L != null && lowAt > 0 && L < lowAt;
   const low = alarm || (pct != null && pct < 15) || (hl != null && hl < s.site.lowFuelHours);
   $('lowalarm').hidden = !alarm;
+  if (s.alarm) {
+    const nt = $('alarmnote'), pk = String(s.alarm.push);
+    if (nt.dataset.push !== pk) { nt.dataset.push = pk; nt.innerHTML = s.alarm.push ? 'Phone notification: <b>ON</b> <button id="alarmtest" type="button">Send test</button>' : 'Phone notification: not set up yet'; }
+    if (!window.__alSync) { window.__alSync = true; let sv = null; try { sv = localStorage.getItem('lowFuelL'); } catch (e) {} if (sv !== null && sv !== '') { if (Number(sv) !== s.alarm.litres) pushAlarm(); } else $('lowset').value = s.alarm.litres; }
+  }
   if (alarm) { $('lowalarm').innerHTML = '<b>Fuel level alarm</b>' + fmt(L, 0) + ' L left, below your alarm level of ' + fmt(lowAt, 0) + ' L.'; alerts.unshift(['bad', 'Fuel level alarm', fmt(L, 0) + ' L left, below your alarm level of ' + fmt(lowAt, 0) + ' L.']); }
   $('fuelbody').innerHTML = (pct == null ? '' : tankSvg(pct, low, T)) + (L == null
     ? `<div class="nofuel">No fuel reading. Check that DIESEL (LITERS) is in the FUEL TANK group.</div>`
