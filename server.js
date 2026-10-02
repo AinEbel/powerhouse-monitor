@@ -171,12 +171,22 @@ function readDemo() {
 const NTFY_TOPIC = E.NTFY_TOPIC || '', NTFY_SERVER = (E.NTFY_SERVER || 'https://ntfy.sh').replace(/\/$/, '');
 // WhatsApp (free CallMeBot service): set WA_PHONE (your number with country code, digits only) and WA_APIKEY in the environment.
 const WA_PHONE = E.WA_PHONE || '', WA_APIKEY = E.WA_APIKEY || '', WA_SERVER = E.WA_SERVER || 'https://api.callmebot.com/whatsapp.php';
-const PUSH_ON = !!(NTFY_TOPIC || (WA_PHONE && WA_APIKEY));
+// Email (free Resend service, https://resend.com): set RESEND_API_KEY and EMAIL_TO (the address you signed up to Resend with).
+const RESEND_KEY = E.RESEND_API_KEY || '', EMAIL_TO = E.EMAIL_TO || '', EMAIL_FROM = E.EMAIL_FROM || 'Al Dhour <onboarding@resend.dev>', EMAIL_REPEAT_S = Number(E.EMAIL_REPEAT_S) || 900;
+let emailLast = 0;
+const PUSH_ON = !!(NTFY_TOPIC || (WA_PHONE && WA_APIKEY) || (RESEND_KEY && EMAIL_TO));
 const ALARM_FILE = path.join(__dirname, 'alarm.json');
 let alarmL = Number(E.LOW_FUEL_L) || 800, alarmActive = false, alarmLastSent = 0, testLastSent = 0;
 try { const a = JSON.parse(fs.readFileSync(ALARM_FILE, 'utf8')); if (a && a.litres >= 0) alarmL = a.litres; } catch (_) {}
-async function notifyPhone(title, message, priority, tags) {
+async function notifyPhone(title, message, priority, tags, sendEmail) {
   let ok = false;
+  if (sendEmail && RESEND_KEY && EMAIL_TO) {
+    try {
+      const r = await fetch(E.RESEND_URL || 'https://api.resend.com/emails', { method: 'POST', headers: { Authorization: 'Bearer ' + RESEND_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: EMAIL_FROM, to: [EMAIL_TO], subject: title, text: message }) });
+      if (!r.ok) console.error('email status', r.status, (await r.text()).slice(0, 200));
+      ok = ok || r.ok;
+    } catch (e) { console.error('email', e.message); }
+  }
   if (NTFY_TOPIC) {
     try {
       const r = await fetch(NTFY_SERVER + '/' + encodeURIComponent(NTFY_TOPIC), { method: 'POST', headers: { Title: title, Priority: priority || 'default', Tags: tags || 'bell' }, body: message });
@@ -199,7 +209,8 @@ function checkFuelAlarm(v) {                         // one message when the lev
   if (L < alarmL) {
     if (!alarmActive || now - alarmLastSent >= (Number(E.ALARM_REPEAT_S) || 10) * 1000) {
       alarmActive = true; alarmLastSent = now;
-      notifyPhone('LOW FUEL - Al Dhour', 'Diesel level is ' + Math.round(L) + ' L, below the alarm level of ' + Math.round(alarmL) + ' L.', 'urgent', 'rotating_light,fuelpump');
+      const emailDue = now - emailLast >= EMAIL_REPEAT_S * 1000; if (emailDue) emailLast = now;   // email at most every 15 min, other alerts every 10 s
+      notifyPhone('LOW FUEL - Al Dhour', 'Diesel level is ' + Math.round(L) + ' L, below the alarm level of ' + Math.round(alarmL) + ' L.', 'urgent', 'rotating_light,fuelpump', emailDue);
     }
   } else if (L >= alarmL + 50) alarmActive = false;
 }
@@ -317,7 +328,7 @@ http.createServer((req, res) => {
         if (j.test) {
           if (Date.now() - testLastSent < 20000) { res.writeHead(429, H); return res.end(JSON.stringify({ error: 'wait' })); }
           testLastSent = Date.now();
-          const ok = await notifyPhone('Test - Al Dhour', 'Phone notifications are working.', 'default', 'white_check_mark');
+          const ok = await notifyPhone('Test - Al Dhour', 'Alert notifications are working.', 'default', 'white_check_mark', true);
           res.writeHead(200, H); return res.end(JSON.stringify({ ok, push: PUSH_ON }));
         }
         const n = Number(j.litres);
