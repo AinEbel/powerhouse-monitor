@@ -243,6 +243,7 @@ const fmt = (v, d = 0) => v == null || isNaN(v) ? '--' : Number(v).toLocaleStrin
 const COL = ['var(--g1)', 'var(--g2)'];
 const PH = ['#d9452f', '#e6b800', '#3f83e0'];
 let built = false, GENS = [], GX = [];
+const VID = (() => { try { let i = localStorage.getItem('vid'); if (!i) { i = Math.random().toString(36).slice(2, 12); localStorage.setItem('vid', i); } return i; } catch (e) { return Math.random().toString(36).slice(2, 12); } })();
 const pushAlarm = body => fetch('/api/alarm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || { litres: Number($('lowset').value) || 0 }) }).then(r => r.json()).catch(() => null);
 $('lowset').addEventListener('input', () => { window.__alEdit = Date.now(); refresh(); clearTimeout(window.__alT); window.__alT = setTimeout(() => pushAlarm(), 900); });
 $('alarmnote').addEventListener('click', async e => { if (e.target.id !== 'alarmtest') return; e.target.disabled = true; e.target.textContent = 'Sending...'; const r = await pushAlarm({ test: true }); e.target.textContent = r && r.ok ? 'Sent - check your phone' : 'Could not send'; setTimeout(() => { e.target.disabled = false; e.target.textContent = 'Send test'; }, 4000); });
@@ -359,7 +360,7 @@ const tankSvg = (pct, low, T) => {
 
 async function refresh() {
   let s;
-  try { const r = await fetch('/api/status', { cache: 'no-store' }); if (!r.ok) throw 0; s = await r.json(); }
+  try { const r = await fetch('/api/status?v=' + VID, { cache: 'no-store' }); if (!r.ok) throw 0; s = await r.json(); }
   catch (e) { setStatus('error', 'Cannot reach the monitor server'); return; }
   if (!built) build(s);
   document.title = s.site.name + ' monitor'; $('name').textContent = s.site.name;
@@ -397,7 +398,8 @@ async function refresh() {
     ? `<div class="nofuel">No fuel reading. Check that DIESEL (LITERS) is in the FUEL TANK group.</div>`
     : `<div><div class="lcd"><span class="big" style="${low ? 'color:var(--low);text-shadow:0 0 10px rgba(255,77,61,.5)' : ''}">${fmt(L, dp('fuel_l'))}</span><small>litres</small></div>
        <div class="sub">${pct != null ? fmt(pct, 0) + '% of ' + fmt(T) + ' L tank' : 'Tank size not set yet'}</div>
-       <div class="sub">Refuelling litres counter <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${fmt(v.fuel_counter, dp('fuel_counter'))}</b></div></div>`);
+       <div class="sub">Refuelling litres counter <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${fmt(v.fuel_counter, dp('fuel_counter'))}</b></div>
+       <div class="sub">People online <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${s.online != null ? s.online : '--'}</b></div></div>`);
   if (hl != null && hl < s.site.lowFuelHours) alerts.push(['bad', 'Low fuel', 'About ' + fmt(hl, 1) + ' hours left at the current use.']);
   else if (pct != null && pct < 15) alerts.push(['bad', 'Low fuel', fmt(pct, 0) + '% left.']);
   $('burn').textContent = rate ? fmt(rate, 1) : '0';
