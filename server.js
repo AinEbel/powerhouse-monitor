@@ -180,11 +180,11 @@ async function notifyPhone(title, message, priority, tags) {
     return r.ok;
   } catch (e) { console.error('ntfy', e.message); return false; }
 }
-function checkFuelAlarm(v) {                         // one message when the level drops below the alarm level, a reminder every 3 h while it stays low
+function checkFuelAlarm(v) {                         // one message when the level drops below the alarm level, repeats every ALARM_REPEAT_S seconds (default 10) while it stays low
   const L = v && v.fuel_l, now = Date.now();
   if (L == null || !isFinite(L) || !(alarmL > 0)) return;
   if (L < alarmL) {
-    if (!alarmActive || now - alarmLastSent > 3 * 3600e3) {
+    if (!alarmActive || now - alarmLastSent >= (Number(E.ALARM_REPEAT_S) || 10) * 1000) {
       alarmActive = true; alarmLastSent = now;
       notifyPhone('LOW FUEL - Al Dhour', 'Diesel level is ' + Math.round(L) + ' L, below the alarm level of ' + Math.round(alarmL) + ' L.', 'urgent', 'rotating_light,fuelpump');
     }
