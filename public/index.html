@@ -57,10 +57,10 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .tkhead span{font:600 24px "Barlow Condensed",sans-serif;letter-spacing:.25em;text-transform:uppercase;color:var(--steel)}
 .tkhead b{font:400 46px "Share Tech Mono",monospace}
 .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 16px}
-.brand{flex:1;display:flex;align-items:center;justify-content:center;padding:14px 0 4px}.brand svg{width:100%;max-width:380px;height:auto;overflow:visible}
+.brandmark{flex:1;display:flex;align-items:center;justify-content:center;padding:14px 0 4px}.brandmark svg{width:100%;max-width:380px;height:auto;overflow:visible}
 @keyframes beat{0%,100%{transform:scale(1)}12%{transform:scale(1.09)}24%{transform:scale(1)}36%{transform:scale(1.05)}48%{transform:scale(1)}}
-.brand .hrt{transform-box:fill-box;transform-origin:center;animation:beat 2.6s ease-in-out infinite}
-@media (prefers-reduced-motion:reduce){.brand .hrt{animation:none}}
+.brandmark .hrt{transform-box:fill-box;transform-origin:center;animation:beat 2.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.brandmark .hrt{animation:none}}
 .kv>div{display:flex;gap:12px;align-items:center}
 .ic{width:42px;height:42px;flex:none;padding:8px;background:#0c0f11;border:1px solid #3a444b;border-radius:3px;stroke:var(--yellow);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .kv b{display:block;font-family:"Share Tech Mono",monospace;font-size:28px;font-weight:400;line-height:1.05}
@@ -182,7 +182,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
         <div><svg class="ic"><use href="#i-drop"/></svg><div><b id="burn">--</b><span>L/H</span></div></div>
         <div><svg class="ic"><use href="#i-clock"/></svg><div><b id="left">--</b><span>FUEL LEFT</span></div></div>
       </div>
-      <div class="brand" aria-label="Ain Ebel PWR Generator"><svg viewBox="0 0 360 232" role="img">
+      <div class="brandmark" aria-label="Ain Ebel PWR Generator"><svg viewBox="0 0 360 232" role="img">
         <defs>
           <linearGradient id="brg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#ff9f1c"/></linearGradient>
           <filter id="brglow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
