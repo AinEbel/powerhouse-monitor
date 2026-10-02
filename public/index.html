@@ -276,7 +276,7 @@ const gensetSvg = g => `
     <rect x="112" y="34" width="92" height="14" rx="2" fill="#d99f00" stroke="#8f6a00"/>
     <path d="M124 34v14M138 34v14M152 34v14M166 34v14M180 34v14M194 34v14" stroke="#8f6a00" stroke-width="1.5"/>
     <rect x="112" y="60" width="92" height="26" rx="2" fill="#16191b"/>
-    <text x="158" y="80" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="21" letter-spacing="2" fill="#ffc21a">${g.label}</text>
+    <text x="158" y="80" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="${g.label.length > 6 ? 17 : 21}" letter-spacing="${g.label.length > 6 ? 0 : 2}"${g.label.length > 6 ? ' textLength="84" lengthAdjust="spacingAndGlyphs"' : ''} fill="#ffc21a">${g.label}</text>
     <circle cx="122" cy="98" r="3.500" fill="#8f6a00"/><circle cx="194" cy="98" r="3.500" fill="#8f6a00"/>
     <rect x="214" y="40" width="70" height="66" rx="3" fill="#2a3237" stroke="#59646c" stroke-width="2"/>
     <path d="M220 48h58M220 98h58" stroke="#3b464d" stroke-width="2"/>
@@ -320,7 +320,7 @@ function build(s) {
     <rect id="pfb-${g.id}" class="node" x="${gx(i) - 66}" y="100" width="132" height="58" rx="3"/>
     <circle cx="${gx(i) - 40}" cy="129" r="17" fill="none" stroke="#ffc21a" stroke-width="2.4"/>
     <text x="${gx(i) - 40}" y="136" text-anchor="middle" style="font-size:21px;font-weight:700;fill:#ffc21a">G</text>
-    <text class="k" x="${gx(i) - 15}" y="123">${g.label}</text><text class="v" id="pf-${g.id}" x="${gx(i) - 15}" y="146" style="font-size:16px">--</text>`).join('')}
+    <text class="k" x="${gx(i) - 15}" y="123"${g.label.length > 6 ? ' textLength="74" lengthAdjust="spacingAndGlyphs"' : ''}>${g.label}</text><text class="v" id="pf-${g.id}" x="${gx(i) - 15}" y="146" style="font-size:16px">--</text>`).join('')}
     <path id="pfl-solar" class="wire" d="M190 100V45"/>
     <rect id="pfb-solar" class="node" x="124" y="100" width="132" height="58" rx="3"/>
     <circle cx="150" cy="129" r="17" fill="none" stroke="#ffc21a" stroke-width="2.4"/>
