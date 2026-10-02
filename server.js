@@ -169,16 +169,29 @@ function readDemo() {
 // ---------- Fuel level alarm + phone notification (ntfy.sh app) ----------
 // Set NTFY_TOPIC (a long, hard-to-guess name) in the environment to turn phone notifications on.
 const NTFY_TOPIC = E.NTFY_TOPIC || '', NTFY_SERVER = (E.NTFY_SERVER || 'https://ntfy.sh').replace(/\/$/, '');
+// WhatsApp (free CallMeBot service): set WA_PHONE (your number with country code, digits only) and WA_APIKEY in the environment.
+const WA_PHONE = E.WA_PHONE || '', WA_APIKEY = E.WA_APIKEY || '', WA_SERVER = E.WA_SERVER || 'https://api.callmebot.com/whatsapp.php';
+const PUSH_ON = !!(NTFY_TOPIC || (WA_PHONE && WA_APIKEY));
 const ALARM_FILE = path.join(__dirname, 'alarm.json');
 let alarmL = Number(E.LOW_FUEL_L) || 800, alarmActive = false, alarmLastSent = 0, testLastSent = 0;
 try { const a = JSON.parse(fs.readFileSync(ALARM_FILE, 'utf8')); if (a && a.litres >= 0) alarmL = a.litres; } catch (_) {}
 async function notifyPhone(title, message, priority, tags) {
-  if (!NTFY_TOPIC) return false;
-  try {
-    const r = await fetch(NTFY_SERVER + '/' + encodeURIComponent(NTFY_TOPIC), { method: 'POST', headers: { Title: title, Priority: priority || 'default', Tags: tags || 'bell' }, body: message });
-    if (!r.ok) console.error('ntfy status', r.status);
-    return r.ok;
-  } catch (e) { console.error('ntfy', e.message); return false; }
+  let ok = false;
+  if (NTFY_TOPIC) {
+    try {
+      const r = await fetch(NTFY_SERVER + '/' + encodeURIComponent(NTFY_TOPIC), { method: 'POST', headers: { Title: title, Priority: priority || 'default', Tags: tags || 'bell' }, body: message });
+      if (!r.ok) console.error('ntfy status', r.status);
+      ok = ok || r.ok;
+    } catch (e) { console.error('ntfy', e.message); }
+  }
+  if (WA_PHONE && WA_APIKEY) {
+    try {
+      const r = await fetch(WA_SERVER + '?phone=' + encodeURIComponent(WA_PHONE) + '&apikey=' + encodeURIComponent(WA_APIKEY) + '&text=' + encodeURIComponent(title + ': ' + message));
+      if (!r.ok) console.error('whatsapp status', r.status);
+      ok = ok || r.ok;
+    } catch (e) { console.error('whatsapp', e.message); }
+  }
+  return ok;
 }
 function checkFuelAlarm(v) {                         // one message when the level drops below the alarm level, repeats every ALARM_REPEAT_S seconds (default 10) while it stays low
   const L = v && v.fuel_l, now = Date.now();
@@ -191,7 +204,7 @@ function checkFuelAlarm(v) {                         // one message when the lev
   } else if (L >= alarmL + 50) alarmActive = false;
 }
 // the free Render plan sleeps when nobody visits; while notifications are on, visit our own address so the alarm keeps being checked
-if (NTFY_TOPIC && E.RENDER_EXTERNAL_URL) setInterval(() => { fetch(E.RENDER_EXTERNAL_URL + '/api/status').catch(() => {}); }, 10 * 60 * 1000);
+if (PUSH_ON && E.RENDER_EXTERNAL_URL) setInterval(() => { fetch(E.RENDER_EXTERNAL_URL + '/api/status').catch(() => {}); }, 10 * 60 * 1000);
 
 // ---------- Poll loop ----------
 let polling = false;
@@ -305,7 +318,7 @@ http.createServer((req, res) => {
           if (Date.now() - testLastSent < 20000) { res.writeHead(429, H); return res.end(JSON.stringify({ error: 'wait' })); }
           testLastSent = Date.now();
           const ok = await notifyPhone('Test - Al Dhour', 'Phone notifications are working.', 'default', 'white_check_mark');
-          res.writeHead(200, H); return res.end(JSON.stringify({ ok, push: !!NTFY_TOPIC }));
+          res.writeHead(200, H); return res.end(JSON.stringify({ ok, push: PUSH_ON }));
         }
         const n = Number(j.litres);
         if (!isFinite(n) || n < 0 || n > 100000) { res.writeHead(400, H); return res.end(JSON.stringify({ error: 'bad value' })); }
@@ -324,7 +337,7 @@ http.createServer((req, res) => {
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })),
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
-      alarm: { litres: alarmL, push: !!NTFY_TOPIC, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
+      alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
     }));
   }
   const file = path.join(__dirname, 'public', url === '/' ? 'index.html' : url);
