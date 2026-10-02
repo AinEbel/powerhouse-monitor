@@ -163,6 +163,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
   <symbol id="i-gen" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 9.2A4.5 4.5 0 1 0 16 13h-4"/></symbol>
   <symbol id="i-mains" viewBox="0 0 24 24"><path d="M12 2 6 22M12 2l6 20M8.5 9h7M7 15.5h10M8.5 9l7 6.5M15.5 9l-7 6.5"/></symbol>
   <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.500 6-11 6-11z"/></symbol>
+  <symbol id="i-temp" viewBox="0 0 24 24"><path d="M10 14.500V5a2 2 0 0 1 4 0v9.500a4 4 0 1 1-4 0z"/><path d="M12 9v7"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.500 2"/></symbol>
 </svg>
 <div class="wrap">
@@ -186,6 +187,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
         <div><svg class="ic"><use href="#i-gen"/></svg><div><b id="totpf">--</b><span>PF</span></div></div>
         <div><svg class="ic"><use href="#i-drop"/></svg><div><b id="burn">--</b><span>L/H</span></div></div>
         <div><svg class="ic"><use href="#i-clock"/></svg><div><b id="left">--</b><span>FUEL LEFT</span></div></div>
+        <div><svg class="ic"><use href="#i-temp"/></svg><div><b id="outtemp">--</b><span>OUTSIDE TEMP</span></div></div>
       </div>
       <div class="brandmark" aria-label="Ain Ebel PWR Generator"><svg viewBox="0 84 360 134" role="img">
         <defs>
@@ -579,6 +581,15 @@ function drawTrends() {
 // Trends are hidden for now (the #trends block); to bring them back: show it and run  rangeBar(); loadHist(); setInterval(() => { if (!R.end) loadHist(); }, 30000);
 
 function setStatus(c, t) { $('status').className = 'status ' + c; $('statustext').textContent = t; }
+// outside temperature at Ain Ebel (free Open-Meteo service, no key), refreshed every 10 minutes
+async function loadTemp() {
+  try {
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.10&longitude=35.38&current=temperature_2m&timezone=auto');
+    const t = (await r.json()).current.temperature_2m;
+    if (typeof t === 'number') $('outtemp').textContent = t.toFixed(1) + ' °C';
+  } catch (e) {}
+}
+loadTemp(); setInterval(loadTemp, 600000);
 refresh(); setInterval(refresh, 5000);
 </script>
 </body>
