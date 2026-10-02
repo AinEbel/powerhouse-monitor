@@ -178,13 +178,6 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
   <div class="alerts" id="alerts"></div>
 
   <div class="top">
-    <section class="panel">
-      <h2>Diesel storage</h2>
-      <div class="lowalarm" id="lowalarm" role="alert" hidden></div>
-      <div class="tankrow" id="fuelbody"></div>
-      <div class="alarmset"><label for="lowset">Low fuel alarm below</label><input id="lowset" type="number" inputmode="numeric" min="0" max="4000" step="50" value="800"><span>litres</span></div>
-      <div class="alarmnote" id="alarmnote"></div>
-    </section>
     <section class="panel" style="display:flex;flex-direction:column">
       <h2>Plant total</h2>
       <div class="kv">
@@ -205,6 +198,13 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
         <circle cx="160" cy="164" r="2.6" fill="#ffc21a"/><circle cx="200" cy="164" r="2.6" fill="#ffc21a"/>
         <text x="180" y="204" text-anchor="middle" font-family="'Barlow Condensed',sans-serif" font-weight="600" font-size="22" letter-spacing="10" fill="#9fb0ba">PWR GENERATOR</text>
       </svg></div>
+    </section>
+    <section class="panel">
+      <h2>Diesel storage</h2>
+      <div class="lowalarm" id="lowalarm" role="alert" hidden></div>
+      <div class="tankrow" id="fuelbody"></div>
+      <div class="alarmset"><label for="lowset">Low fuel alarm below</label><input id="lowset" type="number" inputmode="numeric" min="0" max="4000" step="50" value="800"><span>litres</span></div>
+      <div class="alarmnote" id="alarmnote"></div>
     </section>
   </div>
 
