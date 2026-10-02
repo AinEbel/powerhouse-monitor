@@ -316,17 +316,17 @@ function build(s) {
     <path d="M672 22 664 46h9l-3 22 15-28h-9l4-18z" fill="#ffc21a"/>
     <text class="k" x="694" y="38">AIN EBEL</text><text class="v" id="pf-load" x="694" y="62">--</text>
     ${s.generators.map((g, i) => `
-    <path id="pfl-${g.id}" class="wire" d="M${gx(i)} 100V45"/>
+    <path id="pfl-${g.id}" class="wire" d="M${gx(i)} 100V49.5"/>
     <rect id="pfb-${g.id}" class="node" x="${gx(i) - 66}" y="100" width="132" height="58" rx="3"/>
     <circle cx="${gx(i) - 40}" cy="129" r="17" fill="none" stroke="#ffc21a" stroke-width="2.4"/>
     <text x="${gx(i) - 40}" y="136" text-anchor="middle" style="font-size:21px;font-weight:700;fill:#ffc21a">G</text>
     <text class="k" x="${gx(i) - 15}" y="123"${g.label.length > 6 ? ' textLength="74" lengthAdjust="spacingAndGlyphs"' : ''}>${g.label}</text><text class="v" id="pf-${g.id}" x="${gx(i) - 15}" y="146" style="font-size:16px">--</text>`).join('')}
-    <path id="pfl-solar" class="wire" d="M190 100V45"/>
+    <path id="pfl-solar" class="wire" d="M190 100V49.5"/>
     <rect id="pfb-solar" class="node" x="124" y="100" width="132" height="58" rx="3"/>
     <circle cx="150" cy="129" r="17" fill="none" stroke="#ffc21a" stroke-width="2.4"/>
     <g stroke="#ffc21a" stroke-width="2" fill="none" stroke-linecap="round"><circle cx="150" cy="129" r="4.5"/><path d="M150 118v3M150 137v3M139 129h3M158 129h3M142.2 121.2l2 2M157.8 121.2l-2 2M142.2 136.8l2-2M157.8 136.8l-2-2"/></g>
     <text class="k" x="175" y="123" style="font-size:11px;letter-spacing:0;text-transform:none">SOLAR 50 kWp</text><text class="v" id="pf-solar" x="175" y="146" style="font-size:16px">-- kW</text>
-    <path id="pfl-edl" class="wire" d="M50 100V45"/>
+    <path id="pfl-edl" class="wire" d="M50 100V49.5"/>
     <rect id="pfb-edl" class="node" x="-16" y="100" width="132" height="58" rx="3"/>
     <circle cx="10" cy="129" r="17" fill="none" stroke="#ffc21a" stroke-width="2.4"/>
     <g transform="translate(10 129) scale(.45) translate(-38 -46)" stroke="#ffc21a" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M38 20 27 72M38 20l11 52M31 34h14M29 47h18M31 34l14 13M45 34 31 47"/></g>
