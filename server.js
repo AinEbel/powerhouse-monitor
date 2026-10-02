@@ -210,7 +210,7 @@ function checkFuelAlarm(v) {                         // one message when the lev
     if (!alarmActive || now - alarmLastSent >= (Number(E.ALARM_REPEAT_S) || 10) * 1000) {
       alarmActive = true; alarmLastSent = now;
       const emailDue = now - emailLast >= EMAIL_REPEAT_S * 1000; if (emailDue) emailLast = now;   // email at most every 15 min, other alerts every 10 s
-      notifyPhone('LOW FUEL - Al Dhour', 'Diesel level is ' + Math.round(L) + ' L, below the alarm level of ' + Math.round(alarmL) + ' L.', 'urgent', 'rotating_light,fuelpump', emailDue);
+      notifyPhone('AL DHOUR POWER PLANT - LOW FUEL ALARM', 'Diesel level is ' + Math.round(L) + ' L, below the alarm level of ' + Math.round(alarmL) + ' L.', 'urgent', 'rotating_light,fuelpump', emailDue);
     }
   } else if (L >= alarmL + 50) alarmActive = false;
 }
@@ -336,7 +336,7 @@ http.createServer((req, res) => {
         if (j.test) {
           if (Date.now() - testLastSent < 20000) { res.writeHead(429, H); return res.end(JSON.stringify({ error: 'wait' })); }
           testLastSent = Date.now();
-          const ok = await notifyPhone('Test - Al Dhour', 'Alert notifications are working.', 'default', 'white_check_mark', true);
+          const ok = await notifyPhone('AL DHOUR POWER PLANT - TEST', 'Alert notifications are working.', 'default', 'white_check_mark', true);
           res.writeHead(200, H); return res.end(JSON.stringify({ ok, push: PUSH_ON }));
         }
         const n = Number(j.litres);
