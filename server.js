@@ -166,6 +166,33 @@ function readDemo() {
   return { conn: 'online', values: v };
 }
 
+// ---------- Fuel level alarm + phone notification (ntfy.sh app) ----------
+// Set NTFY_TOPIC (a long, hard-to-guess name) in the environment to turn phone notifications on.
+const NTFY_TOPIC = E.NTFY_TOPIC || '', NTFY_SERVER = (E.NTFY_SERVER || 'https://ntfy.sh').replace(/\/$/, '');
+const ALARM_FILE = path.join(__dirname, 'alarm.json');
+let alarmL = Number(E.LOW_FUEL_L) || 800, alarmActive = false, alarmLastSent = 0, testLastSent = 0;
+try { const a = JSON.parse(fs.readFileSync(ALARM_FILE, 'utf8')); if (a && a.litres >= 0) alarmL = a.litres; } catch (_) {}
+async function notifyPhone(title, message, priority, tags) {
+  if (!NTFY_TOPIC) return false;
+  try {
+    const r = await fetch(NTFY_SERVER + '/' + encodeURIComponent(NTFY_TOPIC), { method: 'POST', headers: { Title: title, Priority: priority || 'default', Tags: tags || 'bell' }, body: message });
+    if (!r.ok) console.error('ntfy status', r.status);
+    return r.ok;
+  } catch (e) { console.error('ntfy', e.message); return false; }
+}
+function checkFuelAlarm(v) {                         // one message when the level drops below the alarm level, a reminder every 3 h while it stays low
+  const L = v && v.fuel_l, now = Date.now();
+  if (L == null || !isFinite(L) || !(alarmL > 0)) return;
+  if (L < alarmL) {
+    if (!alarmActive || now - alarmLastSent > 3 * 3600e3) {
+      alarmActive = true; alarmLastSent = now;
+      notifyPhone('LOW FUEL - Al Dhour', 'Diesel level is ' + Math.round(L) + ' L, below the alarm level of ' + Math.round(alarmL) + ' L.', 'urgent', 'rotating_light,fuelpump');
+    }
+  } else if (L >= alarmL + 50) alarmActive = false;
+}
+// the free Render plan sleeps when nobody visits; while notifications are on, visit our own address so the alarm keeps being checked
+if (NTFY_TOPIC && E.RENDER_EXTERNAL_URL) setInterval(() => { fetch(E.RENDER_EXTERNAL_URL + '/api/status').catch(() => {}); }, 10 * 60 * 1000);
+
 // ---------- Poll loop ----------
 let polling = false;
 async function poll() {
@@ -177,7 +204,7 @@ async function poll() {
       if (values[h] != null) values[h] += (values[g.id + '.min'] || 0) / 60 + (values[g.id + '.sec'] || 0) / 3600;
     });
     state = { conn, updated: Date.now(), values, error: null };
-    trackRefuel(values); trackFuelLevel(values);
+    trackRefuel(values); trackFuelLevel(values); checkFuelAlarm(values);
     const last = history[history.length - 1];
     if (!last || Date.now() - last.t >= 60000) {
       const pt = { t: Date.now(), fuel: values.fuel_l ?? null };
@@ -269,6 +296,26 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({ from, to, size, since: history.length ? history[0].t : null, points, stats }));
   }
+  if (url === '/api/alarm' && req.method === 'POST') {
+    let body = ''; req.on('data', d => { body += d; if (body.length > 1e4) req.destroy(); });
+    req.on('end', async () => {
+      try {
+        const j = JSON.parse(body), H = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+        if (j.test) {
+          if (Date.now() - testLastSent < 20000) { res.writeHead(429, H); return res.end(JSON.stringify({ error: 'wait' })); }
+          testLastSent = Date.now();
+          const ok = await notifyPhone('Test - Al Dhour', 'Phone notifications are working.', 'default', 'white_check_mark');
+          res.writeHead(200, H); return res.end(JSON.stringify({ ok, push: !!NTFY_TOPIC }));
+        }
+        const n = Number(j.litres);
+        if (!isFinite(n) || n < 0 || n > 100000) { res.writeHead(400, H); return res.end(JSON.stringify({ error: 'bad value' })); }
+        alarmL = n; fs.writeFile(ALARM_FILE, JSON.stringify({ litres: n }), () => {});
+        checkFuelAlarm(state.values);
+        res.writeHead(200, H); res.end(JSON.stringify({ litres: alarmL }));
+      } catch (e) { res.writeHead(400); res.end('Bad data'); }
+    });
+    return;
+  }
   if (url === '/api/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     const s = cfg.site;
@@ -277,7 +324,7 @@ http.createServer((req, res) => {
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })),
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
-      conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
+      alarm: { litres: alarmL, push: !!NTFY_TOPIC, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
     }));
   }
   const file = path.join(__dirname, 'public', url === '/' ? 'index.html' : url);
