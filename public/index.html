@@ -401,8 +401,9 @@ async function refresh() {
   $('fuelbody').innerHTML = (pct == null ? '' : tankSvg(pct, low, T)) + (L == null
     ? `<div class="nofuel">No fuel reading. Check that DIESEL (LITERS) is in the FUEL TANK group.</div>`
     : `<div><div class="lcd"><span class="big" style="${low ? 'color:var(--low);text-shadow:0 0 10px rgba(255,77,61,.5)' : ''}">${fmt(L, dp('fuel_l'))}</span><small>litres</small></div>
-       <div class="sub">${pct != null ? fmt(pct, 0) + '% of ' + fmt(T) + ' L tank' : 'Tank size not set yet'}</div>
        <div class="sub">Refuelling litres counter <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${fmt(v.fuel_counter, dp('fuel_counter'))}</b></div>
+       <div class="sub">${pct != null ? fmt(pct, 0) + '% of ' + fmt(T) + ' L tank' : 'Tank size not set yet'}</div>
+       <div class="sub">kWh production today <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${s.fuelToday && s.fuelToday.day ? fmt(s.fuelToday.kwh, 0) + ' kWh' : '--'}</b></div>
        <div class="sub">Consumption today <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${s.fuelToday && s.fuelToday.day ? fmt(s.fuelToday.total, 0) + ' L' : '--'}</b>${s.fuelToday && s.fuelToday.day ? '<small style="margin-left:8px;color:var(--steel)">since ' + hm(s.fuelToday.since) + ', resets 00:00</small>' : ''}</div></div>`);
   renderHourly(s);
   if (hl != null && hl < s.site.lowFuelHours) alerts.push(['bad', 'Low fuel', 'About ' + fmt(hl, 1) + ' hours left at the current use.']);
@@ -470,16 +471,18 @@ const RANGES = [[1, '1 h'], [6, '6 h'], [24, '24 h'], [168, '7 d'], [720, '30 d'
 let HD = null;
 const hh = h => String(h).padStart(2, '0') + ':00 - ' + String((h + 1) % 24).padStart(2, '0') + ':00';
 const hm = t => new Date(t).toLocaleTimeString('en-GB', { timeZone: 'Asia/Beirut', hour: '2-digit', minute: '2-digit' });
+const lpk = (l, k) => k > 0 ? fmt(l / k, 3) : '--';
 function renderHourly(s) {
   const f = s.fuelToday, P = $('hourlyp');
   if (!f || !f.day) { P.style.display = 'none'; return; }
   P.style.display = '';
-  $('hourlysum').innerHTML = 'Today since ' + hm(f.since) + ': <b style="color:var(--fuel);font-family:\'Share Tech Mono\',monospace;font-size:22px;font-weight:400">' + fmt(f.total, 0) + ' L</b>'
+  const big = x => '<b style="color:var(--fuel);font-family:\'Share Tech Mono\',monospace;font-size:22px;font-weight:400">' + x + '</b>';
+  $('hourlysum').innerHTML = 'Today since ' + hm(f.since) + ': produced ' + big(fmt(f.kwh, 0) + ' kWh') + ', fuel used ' + big(fmt(f.total, 0) + ' L') + ', ' + big(lpk(f.total, f.kwh)) + ' L per kWh'
     + (f.rate != null ? ' &nbsp;&middot; now ' + fmt(f.rate, 1) + ' L/h' : '') + (f.refuelled ? ' &nbsp;&middot; refuelled ' + fmt(f.refuelled, 0) + ' L (not counted as use)' : '')
     + '. Counted every minute, starts again at 00:00 (Lebanon time).';
-  const rows = f.hours.slice().reverse().map(r => '<tr><td>' + hh(r.h) + (r.h === f.curHour ? ' <small style="color:var(--steel)">now</small>' : '') + '</td><td>' + fmt(r.used, 0) + '</td></tr>');
-  if (f.prev) rows.push('<tr><td>Yesterday (' + f.prev.day + ')</td><td>' + fmt(f.prev.total, 0) + '</td></tr>');
-  $('hourly').innerHTML = '<thead><tr><th style="text-align:left">Hour (Lebanon time)</th><th>Used (L)</th></tr></thead><tbody>' + rows.join('') + '</tbody>';
+  const rows = f.hours.slice().reverse().map(r => '<tr><td>' + hh(r.h) + (r.h === f.curHour ? ' <small style="color:var(--steel)">now</small>' : '') + '</td><td>' + fmt(r.kwh, 0) + '</td><td>' + fmt(r.used, 0) + '</td><td>' + lpk(r.used, r.kwh) + '</td></tr>');
+  if (f.prev) rows.push('<tr><td>Yesterday (' + f.prev.day + ')</td><td>' + fmt(f.prev.kwh || 0, 0) + '</td><td>' + fmt(f.prev.total, 0) + '</td><td>' + lpk(f.prev.total, f.prev.kwh) + '</td></tr>');
+  $('hourly').innerHTML = '<thead><tr><th style="text-align:left">Hour (Lebanon time)</th><th>Produced (kWh)</th><th>Fuel used (L)</th><th>L per kWh</th></tr></thead><tbody>' + rows.join('') + '</tbody>';
 }
 const fdt = t => new Date(t).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const ftick = (t, span) => span <= 36 * 36e5 ? new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short' });
