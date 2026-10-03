@@ -448,7 +448,7 @@ async function refresh() {
   $('totkva').textContent = running ? fmt(totKva, 1) : '--';
   $('totpf').textContent = running && totKva > 1 ? fmt(Math.min(1, tot / totKva), 2) : '--';
   $('totkw').textContent = fmt(tot, 1);
-  const sol = /[?&]solartest/.test(location.search) ? 30 : v['solar.kw'], solOn = sol != null && sol > 1; wire('pfl-solar', solOn, ' solar'); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : fmt(sol, 0) + ' kW'; if (solOn) act.push(190); const edlOn = edl === 1; if (edlOn) act.push(50);
+  const sol = v['solar.kw'], solOn = sol != null && sol > 1; wire('pfl-solar', solOn, ' solar'); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : fmt(sol, 0) + ' kW'; if (solOn) act.push(190); const edlOn = edl === 1; if (edlOn) act.push(50);
   const aL = act.filter(x => x < LX), aR = act.filter(x => x > LX), mono = running || solOn ? '' : ' mains';
   $('pfl-busL').setAttribute('d', 'M' + (aL.length ? Math.min(...aL) : LX) + ' 45H' + LX); $('pfl-busR').setAttribute('d', 'M' + (aR.length ? Math.max(...aR) : LX) + ' 45H' + LX);
   wire('pfl-busL', aL.length > 0, solOn && !edlOn ? ' solar' : mono); wire('pfl-busR', aR.length > 0, mono); wire('pfl-load', act.length > 0, solOn && (running || edlOn) ? ' mix' : solOn ? ' solar' : mono); $('pf-load').textContent = fmt(tot + (solOn ? sol : 0), 1) + ' kW';
