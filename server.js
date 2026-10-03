@@ -221,18 +221,23 @@ if (E.RENDER_EXTERNAL_URL) setInterval(() => { fetch(E.RENDER_EXTERNAL_URL + '/a
 // Each minute: used = drop in tank level. A minute in which the refuelling counter rises (or the level jumps up by more than 20 L)
 // is a refuel minute: the litres added are not counted as use and the use of that minute is estimated from the load instead.
 const CONS_FILE = path.join(__dirname, 'consumption.json'), LPKW_S = 0.278;
-let cons = { day: null, since: null, total: 0, refuelled: 0, hours: {}, prev: null }, cLast = null, cKw = 0, cKwN = 0, cRecent = [];
+let cons = { day: null, since: null, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null }, cLast = null, cKw = 0, cKwN = 0, cRecent = [], eLast = null;
 try { const j = JSON.parse(fs.readFileSync(CONS_FILE, 'utf8')); if (j && j.day) cons = j; } catch (_) {}
 const BZ = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' });
 function bparts(t) { const p = {}; for (const x of BZ.formatToParts(new Date(t))) p[x.type] = x.value; return { day: p.year + '-' + p.month + '-' + p.day, hour: +p.hour }; }
 function trackToday(v) {
   const L = v.fuel_l, c = v.fuel_counter, now = Date.now();
+  const kwNow = gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0) + (v['solar.kw'] > 0 ? v['solar.kw'] : 0);     // energy produced: kW added up over time (generators + solar)
+  if (cons.day) {
+    if (eLast && now - eLast.t < 120e3) { const e = (kwNow + eLast.kw) / 2 * (now - eLast.t) / 3600e3; cons.kwh = (cons.kwh || 0) + e; cons.kwhH = cons.kwhH || {}; const hr = bparts(now).hour; cons.kwhH[hr] = (cons.kwhH[hr] || 0) + e; }
+  }
+  eLast = { t: now, kw: kwNow };
   if (L == null || !isFinite(L)) return;
   cKw += gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0); cKwN++;
   const m = Math.floor(now / 60000), b = bparts(now);
-  if (!cLast) { cLast = { m, t: now, level: L, counter: c }; if (!cons.day) cons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, prev: null }; return; }
+  if (!cLast) { cLast = { m, t: now, level: L, counter: c }; if (!cons.day) cons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null }; return; }
   if (m === cLast.m) return;
-  if (b.day !== cons.day) cons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, prev: { day: cons.day, since: cons.since, total: Math.round(cons.total), refuelled: Math.round(cons.refuelled) } };
+  if (b.day !== cons.day) cons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: { day: cons.day, since: cons.since, total: Math.round(cons.total), refuelled: Math.round(cons.refuelled), kwh: Math.round(cons.kwh || 0) } };
   const dt = (now - cLast.t) / 3600e3, kwAvg = cKwN ? cKw / cKwN : 0, rise = L - cLast.level;
   const cd = c != null && cLast.counter != null ? Math.max(0, c - cLast.counter) : 0;
   let used, added = 0;
@@ -245,8 +250,9 @@ function trackToday(v) {
 }
 function fuelToday() {
   const now = Date.now(), cur = bparts(now), r = cRecent.reduce((a, x) => a + x.used, 0), span = cRecent.length ? Math.max(60e3, now - cRecent[0].t + 60e3) : 0;
-  return { day: cons.day, since: cons.since, total: Math.round(cons.total), refuelled: Math.round(cons.refuelled), curHour: cur.hour,
-    hours: Object.keys(cons.hours).map(Number).sort((a, b) => a - b).map(h => ({ h, used: Math.round(cons.hours[h]) })),
+  const kh = cons.kwhH || {}, hs = [...new Set([...Object.keys(cons.hours), ...Object.keys(kh)])].map(Number).sort((a, b) => a - b);
+  return { day: cons.day, since: cons.since, total: Math.round(cons.total), refuelled: Math.round(cons.refuelled), curHour: cur.hour, kwh: Math.round(cons.kwh || 0),
+    hours: hs.map(h => ({ h, used: Math.round(cons.hours[h] || 0), kwh: Math.round(kh[h] || 0) })),
     rate: span ? +(r / (span / 3600e3)).toFixed(1) : null, prev: cons.prev };
 }
 // ---------- Who is online: every open page asks for /api/status?v=<random id> every few seconds ----------
