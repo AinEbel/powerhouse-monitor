@@ -401,7 +401,7 @@ async function refresh() {
     : `<div><div class="lcd"><span class="big" style="${low ? 'color:var(--low);text-shadow:0 0 10px rgba(255,77,61,.5)' : ''}">${fmt(L, dp('fuel_l'))}</span><small>litres</small></div>
        <div class="sub">${pct != null ? fmt(pct, 0) + '% of ' + fmt(T) + ' L tank' : 'Tank size not set yet'}</div>
        <div class="sub">Refuelling litres counter <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${fmt(v.fuel_counter, dp('fuel_counter'))}</b></div>
-       <div class="sub">People online <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${s.online != null ? s.online : '--'}</b></div></div>`);
+       <div class="sub">Consumption last 24 h <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${s.fuel24 && s.fuel24.ready ? fmt(s.fuel24.litres, 0) + ' L' : '--'}</b>${s.fuel24 && !s.fuel24.ready ? '<small style="margin-left:8px;color:var(--steel)">collecting data, ' + fmt(s.fuel24.hours || 0, 1) + ' of 24 h</small>' : ''}</div></div>`);
   if (hl != null && hl < s.site.lowFuelHours) alerts.push(['bad', 'Low fuel', 'About ' + fmt(hl, 1) + ' hours left at the current use.']);
   else if (pct != null && pct < 15) alerts.push(['bad', 'Low fuel', fmt(pct, 0) + '% left.']);
   $('burn').textContent = rate ? fmt(rate, 1) : '0';
