@@ -233,11 +233,10 @@ try { const j = JSON.parse(fs.readFileSync(MON_FILE, 'utf8')); if (j && j.daily)
 function periodStart(day) { let [y, m, d] = day.split('-').map(Number); if (d < 5) { m--; if (m < 1) { m = 12; y--; } } return y + '-' + String(m).padStart(2, '0') + '-05'; }
 function monthTotal() {
   let [y, m, d] = bparts(Date.now()).day.split('-').map(Number);
-  const final = d < 5;                                                        // days 1-4: still show last month's finished total (time to read it)
-  if (final) { m--; if (m < 1) { m = 12; y--; } }                             // from the 5th: show the running total of the current month (its days 1-4 are included)
-  const mk = y + '-' + String(m).padStart(2, '0');
-  let kwh = 0, days = 0; for (const [k, v] of Object.entries(mon.daily)) if (k.startsWith(mk)) { kwh += v; days++; }
-  return { month: mk, final, kwh: Math.round(kwh), days };
+  const sum = mk => { let kwh = 0, days = 0; for (const [k, v] of Object.entries(mon.daily)) if (k.startsWith(mk)) { kwh += v; days++; } return { kwh: Math.round(kwh), days }; };
+  const cur = y + '-' + String(m).padStart(2, '0'), pm = m < 2 ? 12 : m - 1, prev = (m < 2 ? y - 1 : y) + '-' + String(pm).padStart(2, '0');
+  if (d < 5) { const p = sum(prev); if (p.days) return { month: prev, final: true, ...p }; }   // days 1-4: show last month's finished total, if there is data for it (time to read it)
+  return { month: cur, final: false, ...sum(cur) };                                                 // otherwise the running total of the current month (days 1-4 included)
 }
 function trackToday(v) {
   const L = v.fuel_l, c = v.fuel_counter, now = Date.now();
