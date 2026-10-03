@@ -456,7 +456,7 @@ async function refresh() {
 
   // details
   $('details').innerHTML = Object.entries(s.site.details).map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')
-    + (T ? `<dt>Tank size</dt><dd>${fmt(T)} litres</dd>` : '') + s.generators.filter(x => x.ratedKva).map(x => `<dt>${x.label} rating</dt><dd>${fmt(x.ratedKva)} kVA (${fmt(x.ratedKva * 0.8)} kW)</dd>`).join('');
+;
   $('foot').textContent = 'Page refreshes every 5 seconds. Plant data refreshes from the FBox every ' + s.pollSeconds + ' seconds.';
 }
 // ---- trends: time range, back/forward, hover read-out, min / max / average ----
