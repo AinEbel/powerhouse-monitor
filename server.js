@@ -215,8 +215,18 @@ function checkFuelAlarm(v) {                         // one message when the lev
   } else if (L >= alarmL + 50) alarmActive = false;
 }
 // the free Render plan sleeps when nobody visits; while notifications are on, visit our own address so the alarm keeps being checked
-if (PUSH_ON && E.RENDER_EXTERNAL_URL) setInterval(() => { fetch(E.RENDER_EXTERNAL_URL + '/api/status').catch(() => {}); }, 10 * 60 * 1000);
+if (E.RENDER_EXTERNAL_URL) setInterval(() => { fetch(E.RENDER_EXTERNAL_URL + '/api/status').catch(() => {}); }, 10 * 60 * 1000);
 
+// ---------- Fuel used in the last 24 hours, from the hourly fuel log (small level wobbles count, a refuel jump is skipped) ----------
+function fuel24() {
+  const now = Date.now(), W = 24 * 3600e3, pts = fuelLog.filter(r => r.t >= now - W - 3600e3).map(r => ({ t: r.t, level: r.level }));
+  if (fuelCur != null) pts.push({ t: now, level: fuelCur });
+  if (pts.length < 2) return { litres: null, hours: 0, ready: false };
+  let used = 0;
+  for (let i = 1; i < pts.length; i++) { const d = pts[i - 1].level - pts[i].level; if (d > -100) used += d; }
+  const hours = Math.min(24, (pts[pts.length - 1].t - pts[0].t) / 3600e3);
+  return { litres: Math.max(0, Math.round(used)), hours: +hours.toFixed(1), ready: hours >= 23.5 };
+}
 // ---------- Who is online: every open page asks for /api/status?v=<random id> every few seconds ----------
 const viewers = new Map();
 function onlineCount() {
@@ -358,7 +368,7 @@ http.createServer((req, res) => {
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })),
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
-      online: onlineCount(), alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
+      online: onlineCount(), fuel24: fuel24(), alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
     }));
   }
   const file = path.join(__dirname, 'public', url === '/' ? 'index.html' : url);
