@@ -217,38 +217,37 @@ function checkFuelAlarm(v) {                         // one message when the lev
 // the free Render plan sleeps when nobody visits; while notifications are on, visit our own address so the alarm keeps being checked
 if (E.RENDER_EXTERNAL_URL) setInterval(() => { fetch(E.RENDER_EXTERNAL_URL + '/api/status').catch(() => {}); }, 10 * 60 * 1000);
 
-// ---------- Fuel used per hour and in the last 24 hours, from the hourly fuel log ----------
-// A rise of more than 500 L between two readings is a refuel, not consumption: the litres added come from the refuelling
-// counter (or, if the counter missed it, the use is estimated from the average load) and the new level is the new baseline.
-const REFUEL_RISE = 500, LPKW_S = 0.278;
-function addedBetween(t0, t1) {
-  let a = 0;
-  for (const r of refuels) if (r.end > t0 && r.start <= t1) a += r.litres;
-  if (openR && openR.counterAfter != null && openR.end > t0 && openR.start <= t1) a += openR.counterAfter - openR.counterBefore;
-  return +a.toFixed(1);
+// ---------- Fuel used today, counted minute by minute; the total starts again at 00:00 Lebanon time ----------
+// Each minute: used = drop in tank level. A minute in which the refuelling counter rises (or the level jumps up by more than 20 L)
+// is a refuel minute: the litres added are not counted as use and the use of that minute is estimated from the load instead.
+const CONS_FILE = path.join(__dirname, 'consumption.json'), LPKW_S = 0.278;
+let cons = { day: null, since: null, total: 0, refuelled: 0, hours: {}, prev: null }, cLast = null, cKw = 0, cKwN = 0, cRecent = [];
+try { const j = JSON.parse(fs.readFileSync(CONS_FILE, 'utf8')); if (j && j.day) cons = j; } catch (_) {}
+const BZ = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' });
+function bparts(t) { const p = {}; for (const x of BZ.formatToParts(new Date(t))) p[x.type] = x.value; return { day: p.year + '-' + p.month + '-' + p.day, hour: +p.hour }; }
+function trackToday(v) {
+  const L = v.fuel_l, c = v.fuel_counter, now = Date.now();
+  if (L == null || !isFinite(L)) return;
+  cKw += gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0); cKwN++;
+  const m = Math.floor(now / 60000), b = bparts(now);
+  if (!cLast) { cLast = { m, t: now, level: L, counter: c }; if (!cons.day) cons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, prev: null }; return; }
+  if (m === cLast.m) return;
+  if (b.day !== cons.day) cons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, prev: { day: cons.day, since: cons.since, total: Math.round(cons.total), refuelled: Math.round(cons.refuelled) } };
+  const dt = (now - cLast.t) / 3600e3, kwAvg = cKwN ? cKw / cKwN : 0, rise = L - cLast.level;
+  const cd = c != null && cLast.counter != null ? Math.max(0, c - cLast.counter) : 0;
+  let used, added = 0;
+  if (cd > 0 || rise > 20) { added = cd > 0 ? cd : rise; used = kwAvg * LPKW_S * dt; }
+  else used = Math.max(0, -rise);
+  cons.total += used; cons.refuelled += added; cons.hours[b.hour] = (cons.hours[b.hour] || 0) + used;
+  cRecent.push({ t: now, used }); cRecent = cRecent.filter(x => x.t > now - 600e3);
+  cLast = { m, t: now, level: L, counter: c }; cKw = 0; cKwN = 0;
+  fs.writeFile(CONS_FILE, JSON.stringify(cons), () => {});
 }
-function interval(p, q) {
-  const d = p.level - q.level;
-  if (-d > REFUEL_RISE) {                                   // tank level jumped up: refuelling
-    const added = addedBetween(p.t, q.t);
-    if (added > 0) return { used: Math.max(0, +(d + added).toFixed(1)), refuel: Math.round(added), est: false };
-    return { used: +(((q.kw || 0) * LPKW_S) * (q.t - p.t) / 3600e3).toFixed(1), refuel: Math.round(-d), est: true };
-  }
-  return { used: Math.max(0, +d.toFixed(1)), refuel: 0, est: false, big: d > 250 };      // more than 250 L in one hour is more than both generators can burn: worth a look
-}
-function fuel24() {
-  const now = Date.now(), W = 24 * 3600e3, pts = fuelLog.filter(r => r.t >= now - W - 3600e3);
-  const all = fuelCur != null ? [...pts, { t: now, level: fuelCur, kw: kwN ? kwSum / kwN : 0, partial: true }] : pts.slice();
-  if (all.length < 2) return { litres: null, hours: 0, ready: false, refuelled: 0, hourly: [] };
-  const rows = []; let used = 0, refuelled = 0;
-  for (let i = 1; i < all.length; i++) {
-    if (all[i].t < now - W) continue;
-    const iv = interval(all[i - 1], all[i]);
-    used += iv.used; refuelled += iv.refuel;
-    rows.push({ t: all[i].t, level: all[i].level, used: Math.round(iv.used), refuel: iv.refuel, est: iv.est, big: !!iv.big, partial: !!all[i].partial });
-  }
-  const hours = Math.min(24, (all[all.length - 1].t - all[0].t) / 3600e3);
-  return { litres: Math.round(used), hours: +hours.toFixed(1), ready: hours >= 23.5, refuelled, hourly: rows.reverse() };
+function fuelToday() {
+  const now = Date.now(), cur = bparts(now), r = cRecent.reduce((a, x) => a + x.used, 0), span = cRecent.length ? Math.max(60e3, now - cRecent[0].t + 60e3) : 0;
+  return { day: cons.day, since: cons.since, total: Math.round(cons.total), refuelled: Math.round(cons.refuelled), curHour: cur.hour,
+    hours: Object.keys(cons.hours).map(Number).sort((a, b) => a - b).map(h => ({ h, used: Math.round(cons.hours[h]) })),
+    rate: span ? +(r / (span / 3600e3)).toFixed(1) : null, prev: cons.prev };
 }
 // ---------- Who is online: every open page asks for /api/status?v=<random id> every few seconds ----------
 const viewers = new Map();
@@ -269,7 +268,7 @@ async function poll() {
       if (values[h] != null) values[h] += (values[g.id + '.min'] || 0) / 60 + (values[g.id + '.sec'] || 0) / 3600;
     });
     state = { conn, updated: Date.now(), values, error: null };
-    trackRefuel(values); trackFuelLevel(values); checkFuelAlarm(values);
+    trackRefuel(values); trackFuelLevel(values); trackToday(values); checkFuelAlarm(values);
     const last = history[history.length - 1];
     if (!last || Date.now() - last.t >= 60000) {
       const pt = { t: Date.now(), fuel: values.fuel_l ?? null };
@@ -391,7 +390,7 @@ http.createServer((req, res) => {
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })),
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
-      online: onlineCount(), fuel24: fuel24(), alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
+      online: onlineCount(), fuelToday: fuelToday(), alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
     }));
   }
   const file = path.join(__dirname, 'public', url === '/' ? 'index.html' : url);
