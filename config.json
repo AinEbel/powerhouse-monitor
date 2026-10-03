@@ -13,7 +13,9 @@
       "Site": "Al Dhour",
       "FBox serial": "300223071126",
       "FBox group": "ELIE 0",
-      "Generators": "GENERATOR 1 and GENERATOR 2"
+      "Power plants": "220 kVA, 160 kVA, 350 kVA",
+      "Solar plant": "50 kWp",
+      "Diesel tank capacity": "4000 Liters"
     }
   },
 
