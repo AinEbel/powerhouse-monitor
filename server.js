@@ -225,16 +225,19 @@ let cons = { day: null, since: null, total: 0, refuelled: 0, hours: {}, kwh: 0, 
 try { const j = JSON.parse(fs.readFileSync(CONS_FILE, 'utf8')); if (j && j.day) cons = j; } catch (_) {}
 const BZ = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' });
 function bparts(t) { const p = {}; for (const x of BZ.formatToParts(new Date(t))) p[x.type] = x.value; return { day: p.year + '-' + p.month + '-' + p.day, hour: +p.hour }; }
-// Monthly production total. The kWh of every day is saved. Counting restarts at 00:00 on the 5th of each month, but not from zero:
-// it restarts with the kWh already produced on the 1st-4th of that month, and keeps adding until the next 5th (Lebanon time).
+// Monthly kWh. The kWh of every day is saved. On the 1st-4th of a month the box shows the finished total of the previous month (time to read it);
+// at 00:00 on the 5th it switches to the running total of the new month, which already contains that month's days 1-4 (Lebanon time).
 const MON_FILE = path.join(__dirname, 'month.json');
 let mon = { daily: {} }, monSaved = 0;
 try { const j = JSON.parse(fs.readFileSync(MON_FILE, 'utf8')); if (j && j.daily) mon = j; } catch (_) {}
 function periodStart(day) { let [y, m, d] = day.split('-').map(Number); if (d < 5) { m--; if (m < 1) { m = 12; y--; } } return y + '-' + String(m).padStart(2, '0') + '-05'; }
 function monthTotal() {
-  const from = periodStart(bparts(Date.now()).day).slice(0, 8) + '01';       // 1st of the month in which the current counting period began
-  let kwh = 0, days = 0; for (const [k, v] of Object.entries(mon.daily)) if (k >= from) { kwh += v; days++; }
-  return { from, kwh: Math.round(kwh), days };
+  let [y, m, d] = bparts(Date.now()).day.split('-').map(Number);
+  const final = d < 5;                                                        // days 1-4: still show last month's finished total (time to read it)
+  if (final) { m--; if (m < 1) { m = 12; y--; } }                             // from the 5th: show the running total of the current month (its days 1-4 are included)
+  const mk = y + '-' + String(m).padStart(2, '0');
+  let kwh = 0, days = 0; for (const [k, v] of Object.entries(mon.daily)) if (k.startsWith(mk)) { kwh += v; days++; }
+  return { month: mk, final, kwh: Math.round(kwh), days };
 }
 function trackToday(v) {
   const L = v.fuel_l, c = v.fuel_counter, now = Date.now();
