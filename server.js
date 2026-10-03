@@ -382,6 +382,31 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({ from, to, size, since: history.length ? history[0].t : null, points, stats }));
   }
+  // Backup / restore of the counters (kWh today, monthly kWh, fuel used today), so a new version of the page can be put online without losing them.
+  // Restore is accepted only in the first 15 minutes after a start, and only keeps the larger value of every day, so it can never lower a count.
+  if (url === '/api/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons, mon })); }
+  if (url === '/api/restore' && req.method === 'POST') {
+    let body = ''; req.on('data', d => { body += d; if (body.length > 5e5) req.destroy(); });
+    req.on('end', () => {
+      const H = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+      try {
+        if (process.uptime() > 900) { res.writeHead(403, H); return res.end(JSON.stringify({ error: 'only right after a start' })); }
+        const j = JSON.parse(body), out = {};
+        if (j.mon && j.mon.daily) { for (const [k, v] of Object.entries(j.mon.daily)) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mon.daily[k] = Math.max(mon.daily[k] || 0, +v); out.days = Object.keys(mon.daily).length; fs.writeFile(MON_FILE, JSON.stringify(mon), () => {}); }
+        const c = j.cons;
+        if (c && c.day && c.day === cons.day) {                                      // same day: keep the bigger counts, and the earlier start
+          cons.total = Math.max(cons.total, +c.total || 0); cons.refuelled = Math.max(cons.refuelled, +c.refuelled || 0); cons.kwh = Math.max(cons.kwh || 0, +c.kwh || 0);
+          if (c.since && c.since < cons.since) cons.since = c.since;
+          for (const [h, v] of Object.entries(c.hours || {})) cons.hours[h] = Math.max(cons.hours[h] || 0, +v || 0);
+          cons.kwhH = cons.kwhH || {}; for (const [h, v] of Object.entries(c.kwhH || {})) cons.kwhH[h] = Math.max(cons.kwhH[h] || 0, +v || 0);
+          if (c.prev && !cons.prev) cons.prev = c.prev;
+          fs.writeFile(CONS_FILE, JSON.stringify(cons), () => {}); out.today = true;
+        }
+        res.writeHead(200, H); return res.end(JSON.stringify({ ok: true, ...out }));
+      } catch (e) { res.writeHead(400, H); return res.end(JSON.stringify({ error: 'bad data' })); }
+    });
+    return;
+  }
   if (url === '/api/alarm' && req.method === 'POST') {
     let body = ''; req.on('data', d => { body += d; if (body.length > 1e4) req.destroy(); });
     req.on('end', async () => {
