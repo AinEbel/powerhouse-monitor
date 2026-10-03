@@ -310,7 +310,7 @@ function build(s) {
   // single-line power flow: mains -> busbar -> load, generators feed the busbar from below
   const n = s.generators.length, gx = i => 190 + (i + 1) * 420 / (n + 1); GX = s.generators.map((g, i) => gx(i)); LX = (190 + gx(0)) / 2; RE = gx(n - 1);
   $('flow').innerHTML = `<g transform="translate(0 80)">
-    <path class="bus" d="M50 45H${RE}"/><path id="pfl-busL" class="wire" d="M50 45H${LX}"/><path id="pfl-busR" class="wire" d="M${RE} 45H${LX}"/>
+    <path class="bus" d="M36 45H${RE + 14}"/><path id="pfl-busL" class="wire" d="M50 45H${LX}"/><path id="pfl-busR" class="wire" d="M${RE} 45H${LX}"/>
     <path id="pfl-load" class="wire" d="M${LX} 40.5V-4"/>
     <g transform="translate(${LX - 70} -70)"><rect class="node" x="0" y="0" width="140" height="66" rx="3"/>
     <path d="M22 10 14 34h9l-3 22 15-28h-9l4-18z" fill="#ffc21a"/>
