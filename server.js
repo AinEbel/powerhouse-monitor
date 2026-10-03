@@ -225,17 +225,23 @@ let cons = { day: null, since: null, total: 0, refuelled: 0, hours: {}, kwh: 0, 
 try { const j = JSON.parse(fs.readFileSync(CONS_FILE, 'utf8')); if (j && j.day) cons = j; } catch (_) {}
 const BZ = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' });
 function bparts(t) { const p = {}; for (const x of BZ.formatToParts(new Date(t))) p[x.type] = x.value; return { day: p.year + '-' + p.month + '-' + p.day, hour: +p.hour }; }
-// Monthly production total: one period runs from 00:00 on the 5th of a month to 00:00 on the 5th of the next month (Lebanon time)
+// Monthly production total. The kWh of every day is saved. Counting restarts at 00:00 on the 5th of each month, but not from zero:
+// it restarts with the kWh already produced on the 1st-4th of that month, and keeps adding until the next 5th (Lebanon time).
 const MON_FILE = path.join(__dirname, 'month.json');
-let mon = { period: null, since: null, kwh: 0, prev: null }, monSaved = 0;
-try { const j = JSON.parse(fs.readFileSync(MON_FILE, 'utf8')); if (j && j.period) mon = j; } catch (_) {}
+let mon = { daily: {} }, monSaved = 0;
+try { const j = JSON.parse(fs.readFileSync(MON_FILE, 'utf8')); if (j && j.daily) mon = j; } catch (_) {}
 function periodStart(day) { let [y, m, d] = day.split('-').map(Number); if (d < 5) { m--; if (m < 1) { m = 12; y--; } } return y + '-' + String(m).padStart(2, '0') + '-05'; }
+function monthTotal() {
+  const from = periodStart(bparts(Date.now()).day).slice(0, 8) + '01';       // 1st of the month in which the current counting period began
+  let kwh = 0, days = 0; for (const [k, v] of Object.entries(mon.daily)) if (k >= from) { kwh += v; days++; }
+  return { from, kwh: Math.round(kwh), days };
+}
 function trackToday(v) {
   const L = v.fuel_l, c = v.fuel_counter, now = Date.now();
   const kwNow = gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0) + (v['solar.kw'] > 0 ? v['solar.kw'] : 0);     // energy produced: kW added up over time (generators + solar)
-  { const pk = periodStart(bparts(now).day); if (mon.period !== pk) mon = { period: pk, since: now, kwh: 0, prev: mon.period ? { period: mon.period, kwh: Math.round(mon.kwh) } : null };    // new period starts at 00:00 on the 5th
-    if (eLast && now - eLast.t < 120e3) mon.kwh += (kwNow + eLast.kw) / 2 * (now - eLast.t) / 3600e3;
-    if (now - monSaved > 60e3) { monSaved = now; fs.writeFile(MON_FILE, JSON.stringify(mon), () => {}); } }
+  { const dk = bparts(now).day;                          // kWh produced is kept for every day, so any day range can be added up
+    if (eLast && now - eLast.t < 120e3) mon.daily[dk] = (mon.daily[dk] || 0) + (kwNow + eLast.kw) / 2 * (now - eLast.t) / 3600e3;
+    if (now - monSaved > 60e3) { monSaved = now; const old = Object.keys(mon.daily).sort().slice(0, -120); old.forEach(k => delete mon.daily[k]); fs.writeFile(MON_FILE, JSON.stringify(mon), () => {}); } }
   if (cons.day) {
     if (eLast && now - eLast.t < 120e3) { const e = (kwNow + eLast.kw) / 2 * (now - eLast.t) / 3600e3; cons.kwh = (cons.kwh || 0) + e; cons.kwhH = cons.kwhH || {}; const hr = bparts(now).hour; cons.kwhH[hr] = (cons.kwhH[hr] || 0) + e; }
   }
@@ -259,7 +265,7 @@ function trackToday(v) {
 function fuelToday() {
   const now = Date.now(), cur = bparts(now), r = cRecent.reduce((a, x) => a + x.used, 0), span = cRecent.length ? Math.max(60e3, now - cRecent[0].t + 60e3) : 0;
   const kh = cons.kwhH || {}, hs = [...new Set([...Object.keys(cons.hours), ...Object.keys(kh)])].map(Number).sort((a, b) => a - b);
-  return { day: cons.day, since: cons.since, total: Math.round(cons.total), refuelled: Math.round(cons.refuelled), curHour: cur.hour, kwh: Math.round(cons.kwh || 0), month: { period: mon.period, since: mon.since, kwh: Math.round(mon.kwh || 0), prev: mon.prev },
+  return { day: cons.day, since: cons.since, total: Math.round(cons.total), refuelled: Math.round(cons.refuelled), curHour: cur.hour, kwh: Math.round(cons.kwh || 0), month: monthTotal(),
     hours: hs.map(h => ({ h, used: Math.round(cons.hours[h] || 0), kwh: Math.round(kh[h] || 0) })),
     rate: span ? +(r / (span / 3600e3)).toFixed(1) : null, prev: cons.prev };
 }
