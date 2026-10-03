@@ -401,8 +401,8 @@ async function refresh() {
   $('fuelbody').innerHTML = (pct == null ? '' : tankSvg(pct, low, T)) + (L == null
     ? `<div class="nofuel">No fuel reading. Check that DIESEL (LITERS) is in the FUEL TANK group.</div>`
     : `<div><div class="lcd"><span class="big" style="${low ? 'color:var(--low);text-shadow:0 0 10px rgba(255,77,61,.5)' : ''}">${fmt(L, dp('fuel_l'))}</span><small>litres</small></div>
-       <div class="sub">Refuelling litres counter <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${fmt(v.fuel_counter, dp('fuel_counter'))}</b></div>
-       <div class="sub">${pct != null ? fmt(pct, 0) + '% of ' + fmt(T) + ' L tank' : 'Tank size not set yet'}</div>
+       <div style="display:inline-block;vertical-align:bottom;margin-left:14px;padding-bottom:6px"><div style="font-family:'Barlow Condensed';font-size:16px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel)">Counter</div><b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel)">${fmt(v.fuel_counter, dp('fuel_counter'))}</b></div></div>
+       <div><div style="height:0"></div>
        <div class="sub">kWh production today <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${s.fuelToday && s.fuelToday.day ? fmt(s.fuelToday.kwh, 0) + ' kWh' : '--'}</b></div>
        <div class="sub">Consumption today <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${s.fuelToday && s.fuelToday.day ? fmt(s.fuelToday.total, 0) + ' L' : '--'}</b>${s.fuelToday && s.fuelToday.day ? '<small style="margin-left:8px;color:var(--steel)">since ' + hm(s.fuelToday.since) + ', resets 00:00</small>' : ''}</div></div>`);
   renderHourly(s);
