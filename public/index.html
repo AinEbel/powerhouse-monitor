@@ -235,6 +235,8 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
   </div>
   </div>
 
+  <section class="panel" id="hourlyp" style="display:none"><h2>Fuel used per hour</h2><div class="sub" id="hourlysum"></div><div class="tscroll"><table class="stats" id="hourly"></table></div></section>
+
   <section class="panel"><h2>Power house details</h2><dl id="details"></dl></section>
   <footer id="foot"></footer>
 </div>
@@ -402,6 +404,7 @@ async function refresh() {
        <div class="sub">${pct != null ? fmt(pct, 0) + '% of ' + fmt(T) + ' L tank' : 'Tank size not set yet'}</div>
        <div class="sub">Refuelling litres counter <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${fmt(v.fuel_counter, dp('fuel_counter'))}</b></div>
        <div class="sub">Consumption last 24 h <b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);margin-left:6px">${s.fuel24 && s.fuel24.ready ? fmt(s.fuel24.litres, 0) + ' L' : '--'}</b>${s.fuel24 && !s.fuel24.ready ? '<small style="margin-left:8px;color:var(--steel)">collecting data, ' + fmt(s.fuel24.hours || 0, 1) + ' of 24 h</small>' : ''}</div></div>`);
+  renderHourly(s);
   if (hl != null && hl < s.site.lowFuelHours) alerts.push(['bad', 'Low fuel', 'About ' + fmt(hl, 1) + ' hours left at the current use.']);
   else if (pct != null && pct < 15) alerts.push(['bad', 'Low fuel', fmt(pct, 0) + '% left.']);
   $('burn').textContent = rate ? fmt(rate, 1) : '0';
@@ -465,6 +468,15 @@ async function refresh() {
 const R = { hours: 24, end: null, mode: 'level' };
 const RANGES = [[1, '1 h'], [6, '6 h'], [24, '24 h'], [168, '7 d'], [720, '30 d']];
 let HD = null;
+const hrt = t => new Date(t).toLocaleString('en-GB', { timeZone: 'Asia/Beirut', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+function renderHourly(s) {
+  const f = s.fuel24, P = $('hourlyp');
+  if (!f || !f.hourly || !f.hourly.length) { P.style.display = 'none'; return; }
+  P.style.display = '';
+  $('hourlysum').innerHTML = 'Last 24 h: <b style="color:var(--fuel);font-family:\'Share Tech Mono\',monospace;font-size:22px;font-weight:400">' + fmt(f.litres, 0) + ' L</b> over ' + fmt(f.hours, 1) + ' h' + (f.refuelled ? ' &nbsp;(refuelled ' + fmt(f.refuelled, 0) + ' L, not counted as use)' : '') + '. The window moves forward every hour, so the oldest hour drops out as a new one is added.';
+  $('hourly').innerHTML = '<thead><tr><th style="text-align:left">Time (Lebanon)</th><th>Tank level (L)</th><th>Used (L)</th></tr></thead><tbody>' + f.hourly.map(r =>
+    '<tr><td>' + hrt(r.t) + (r.partial ? ' <small style="color:var(--steel)">now</small>' : '') + (r.refuel ? ' <small style="color:var(--yellow)">refuel +' + fmt(r.refuel, 0) + ' L</small>' : '') + (r.big ? ' <small style="color:var(--low)">unusual drop</small>' : '') + '</td><td>' + fmt(r.level, 0) + '</td><td>' + (r.est ? '~' : '') + fmt(r.used, 0) + '</td></tr>').join('') + '</tbody>';
+}
 const fdt = t => new Date(t).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const ftick = (t, span) => span <= 36 * 36e5 ? new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short' });
 
