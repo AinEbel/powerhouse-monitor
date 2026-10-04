@@ -371,7 +371,7 @@ const tankSvg = (pct, low, T) => {
     <path d="M84 ${y(pct)}h500" stroke="#fff" stroke-width="3" opacity=".35"/>
 </g>
   ${ticks}
-  <path d="M62 ${y(pct) - 8}l16 8-16 8z" fill="#3aa0ff" stroke="#1b4f87" stroke-width="1.5"/>
+  <rect x="63" y="${y(100)}" width="5" height="${HH}" rx="2.5" fill="#0c0f11" stroke="#3a444b"/><rect x="63" y="${y(pct)}" width="5" height="${pct * HH / 100}" rx="2.5" fill="#3aa0ff"/>
 </svg>
 </div>`;
 };
