@@ -53,7 +53,7 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .tankrow{display:flex;flex-direction:column-reverse;gap:14px;align-items:stretch}
 .tankwrap{width:100%;max-width:760px;margin:0 auto}
 .tankwrap svg{width:100%;height:auto;display:block}
-.tkhead{display:flex;align-items:baseline;justify-content:center;gap:16px;margin:0 0 6px}
+.tkhead{display:block;text-align:center;padding-left:7.74%;margin:0 0 6px}
 .tkhead span{font:600 24px "Barlow Condensed",sans-serif;letter-spacing:.25em;text-transform:uppercase;color:var(--steel)}
 .tkhead b{font:400 46px "Share Tech Mono",monospace}
 .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 16px}
@@ -360,7 +360,7 @@ const tankSvg = (pct, low, T) => {
   }
   return `
 <div class="tankwrap">
-<div class="tkhead"><span>Diesel</span><b style="color:${low ? 'var(--low)' : 'var(--fuel)'}">${fmt(pct, 0)}%</b></div>
+<div class="tkhead"><b style="color:${low ? 'var(--low)' : 'var(--fuel)'}">${fmt(pct, 0)}%</b></div>
 <svg viewBox="0 0 620 262" role="img" aria-label="Diesel tank level">
   <defs><clipPath id="tk"><rect x="84" y="30" width="500" height="190" rx="64"/></clipPath></defs>
   <path d="M150 216l-14 36h54l-8-36zM478 216l-8 36h54l-14-36z" fill="#2f383e" stroke="#59646c" stroke-width="2"/>
