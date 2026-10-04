@@ -61,6 +61,11 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 @keyframes beat{0%,100%{transform:scale(1)}12%{transform:scale(1.09)}24%{transform:scale(1)}36%{transform:scale(1.05)}48%{transform:scale(1)}}
 .brandmark .hrt{transform-box:fill-box;transform-origin:center;animation:beat 2.6s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.brandmark .hrt{animation:none}}
+.panel.live{overflow:hidden;animation:livepulse 4s ease-in-out infinite}
+.panel.live::after{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;pointer-events:none;z-index:2;background:linear-gradient(100deg,transparent 0,rgba(61,220,132,0) 15%,rgba(130,255,185,.2) 50%,rgba(61,220,132,0) 85%,transparent 100%);transform:translateX(-120%) skewX(-18deg);opacity:0;animation:livewave 4s linear infinite}
+@keyframes livewave{0%{transform:translateX(-120%) skewX(-18deg);opacity:0}6%{opacity:1}34%{transform:translateX(300%) skewX(-18deg);opacity:1}38%,100%{transform:translateX(300%) skewX(-18deg);opacity:0}}
+@keyframes livepulse{0%,100%{border-color:#47525a}36%{border-color:#3ddc84}}
+@media (prefers-reduced-motion:reduce){.panel.live,.panel.live::after{animation:none}}
 .alarmset{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid #333d44;color:var(--steel);font-size:16px;flex-wrap:wrap}
 .alarmset label{font-family:"Barlow Condensed";text-transform:uppercase;letter-spacing:.08em;font-size:17px}
 .alarmset input{width:110px;background:#0c1012;border:1px solid #4a555c;border-radius:3px;color:var(--fuel);font-family:"Share Tech Mono",monospace;font-size:24px;padding:4px 8px;text-align:right}
@@ -419,7 +424,7 @@ async function refresh() {
     const k = n => v[g.id + '.' + n], kw = k('kw'), st = k('status');
     const on = st != null ? st === 1 : kw != null && kw > 1;
     if (on) { running++; const gi = s.generators.indexOf(g); if (GX[gi] != null) act.push(GX[gi]); } if (kw != null) tot += kw;
-    $(g.id + '-svg').setAttribute('class', 'gset' + (on ? ' on' : ''));
+    $(g.id + '-svg').setAttribute('class', 'gset' + (on ? ' on' : '')); $(g.id + '-photo').closest('.panel').classList.toggle('live', on);
     wire('pfl-' + g.id, on); $('pfb-' + g.id).setAttribute('class', 'node' + (on ? ' on' : ''));
     $('pf-' + g.id).textContent = !on ? 'STOPPED' : fmt(kw, 0) + ' kW';
     $(g.id + '-kw').textContent = fmt(kw, dp('kw'));
