@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <title>Power house monitor</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=Share+Tech+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=Share+Tech+Mono&family=Black+Ops+One&display=swap">
 <style>
 :root{--bg:#121518;--p1:#252c31;--p2:#1a2024;--ink:#e8edf0;--steel:#8d9aa3;--line:#38424a;--yellow:#ffc21a;--fuel:#ff9f1a;--low:#ff4d3d;--ok:#38d27a;--warn:#ffb020;--g1:#ffc21a;--g2:#3ec6ff;--lcd:#090c0e;
   font-family:"Barlow",system-ui,sans-serif;color:var(--ink);color-scheme:dark}
@@ -57,7 +57,10 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .tkhead span{font:600 24px "Barlow Condensed",sans-serif;letter-spacing:.25em;text-transform:uppercase;color:var(--steel)}
 .tkhead b{font:400 46px "Share Tech Mono",monospace}
 .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 16px}
-.brandmark{flex:1;display:flex;align-items:center;justify-content:center;padding:14px 0 4px}.brandmark svg{width:100%;max-width:380px;height:auto;overflow:visible}
+.brandmark{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 0 4px}
+.clk{font-family:'Black Ops One','Barlow Condensed',sans-serif;font-weight:400;color:#fff;text-align:center;line-height:1.1;margin-bottom:18px;text-shadow:0 2px 0 #000,0 0 10px rgba(255,255,255,.25)}
+.clk #clkT{font-size:56px;letter-spacing:.07em}
+.clk #clkD{font-size:25px;letter-spacing:.14em;margin-top:6px}.brandmark svg{width:100%;max-width:380px;height:auto;overflow:visible}
 @keyframes beat{0%,100%{transform:scale(1)}12%{transform:scale(1.09)}24%{transform:scale(1)}36%{transform:scale(1.05)}48%{transform:scale(1)}}
 .brandmark .hrt{transform-box:fill-box;transform-origin:center;animation:beat 2.6s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.brandmark .hrt{animation:none}}
@@ -205,7 +208,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
         <div><svg class="ic"><use href="#i-clock"/></svg><div><b id="left">--</b><span>FUEL LEFT</span></div></div>
         <div><svg class="ic"><use href="#i-temp"/></svg><div><b id="outtemp">--</b><span>OUTSIDE TEMP</span></div></div>
       </div>
-      <div class="brandmark" aria-label="Ain Ebel Power Generators"><svg viewBox="0 84 360 134" role="img">
+      <div class="brandmark" aria-label="Ain Ebel Power Generators"><div class="clk" id="clk"><div id="clkT">--:--:--</div><div id="clkD">&nbsp;</div></div><svg viewBox="0 84 360 134" role="img">
         <defs>
           <linearGradient id="brg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#ff9f1c"/></linearGradient>
           <filter id="brglow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -635,6 +638,8 @@ async function loadTemp() {
 }
 loadTemp(); setInterval(loadTemp, 600000);
 refresh(); setInterval(refresh, 5000);
+const clkTick = () => { const n = new Date(), z = { timeZone: 'Asia/Beirut' }; $('clkT').textContent = n.toLocaleTimeString('en-GB', { ...z, hour12: false }); $('clkD').textContent = n.toLocaleDateString('en-GB', { ...z, weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/,/g, '').toUpperCase(); };
+clkTick(); setInterval(clkTick, 1000);
 </script>
 </body>
 </html>
