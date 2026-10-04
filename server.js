@@ -239,9 +239,27 @@ function monthTotal() {
   if (d < 5) { const p = sum(prev); if (p.days) return { month: prev, final: true, ...p }; }   // days 1-4: show last month's finished total, if there is data for it (time to read it)
   return { month: cur, final: false, ...sum(cur) };                                                 // otherwise the running total of the current month (days 1-4 included)
 }
+// Power read at the AIN EBEL busbar = every source added up: generator + generator + solar.
+// Until the solar meter is connected, solar is estimated from the generators' power factor (solar adds kW only, no kVAr):
+// PF 0.98 = no solar, PF 0.66 = 50 kW. This is the same rule as in the page (public/index.html).
+const SOLAR_KWP = 50, SOLAR_PF0 = 0.98, SOLAR_PF1 = 0.66;
+function solarKw(v) {
+  if (v['solar.kw'] != null) return v['solar.kw'] > 0 ? v['solar.kw'] : 0;
+  let tot = 0, kva = 0, running = 0;
+  for (const g of gens) {
+    const kw = v[g.id + '.kw'], st = v[g.id + '.status'], on = st != null ? st === 1 : kw != null && kw > 1;
+    if (kw != null) tot += kw;
+    if (!on) continue; running++;
+    const vv = [1, 2, 3].map(p => v[g.id + '.v' + p]), ii = [1, 2, 3].map(p => v[g.id + '.i' + p]);
+    if (vv.every(x => x != null) && ii.every(x => x != null)) kva += vv.reduce((a, x, i) => a + x * ii[i], 0) / 1000;
+  }
+  if (!running || kva <= 1) return 0;
+  const est = Math.max(0, Math.min(SOLAR_KWP, SOLAR_KWP * (SOLAR_PF0 - Math.min(1, tot / kva)) / (SOLAR_PF0 - SOLAR_PF1)));
+  return est < 2 ? 0 : est;
+}
 function trackToday(v) {
   const L = v.fuel_l, c = v.fuel_counter, now = Date.now();
-  const kwNow = gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0) + (v['solar.kw'] > 0 ? v['solar.kw'] : 0);     // energy produced: kW added up over time (generators + solar)
+  const kwNow = gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0) + solarKw(v);     // energy produced: kW added up over time (generators + solar)
   { const dk = bparts(now).day;                          // kWh produced is kept for every day, so any day range can be added up
     if (eLast && now - eLast.t < 120e3) mon.daily[dk] = (mon.daily[dk] || 0) + (kwNow + eLast.kw) / 2 * (now - eLast.t) / 3600e3;
     if (now - monSaved > 60e3) { monSaved = now; const old = Object.keys(mon.daily).sort().slice(0, -120); old.forEach(k => delete mon.daily[k]); Object.keys(mon.fuel).sort().slice(0, -120).forEach(k => delete mon.fuel[k]); fs.writeFile(MON_FILE, JSON.stringify(mon), () => {}); } }
