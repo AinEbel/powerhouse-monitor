@@ -454,7 +454,11 @@ async function refresh() {
   $('totkva').textContent = running ? fmt(totKva, 1) : '--';
   $('totpf').textContent = running && totKva > 1 ? fmt(Math.min(1, tot / totKva), 2) : '--';
   $('totkw').textContent = fmt(tot, 1);
-  const sol = v['solar.kw'], solOn = sol != null && sol > 1; wire('pfl-solar', solOn, ' solar'); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : fmt(sol, 0) + ' kW'; if (solOn) act.push(190); const edlOn = edl === 1; if (edlOn) act.push(50);
+  // Solar estimate until the solar meter is connected: solar pushes only kW (no kVAr), so the generators' power factor falls from SOLAR_PF0 (no solar) to SOLAR_PF1 (solar at full SOLAR_KWP).
+  const SOLAR_KWP = 50, SOLAR_PF0 = 0.98, SOLAR_PF1 = 0.66, solReal = v['solar.kw'];
+  let solEst = null;
+  if (solReal == null && running && totKva > 1) { const gpf = Math.min(1, tot / totKva); solEst = Math.max(0, Math.min(SOLAR_KWP, SOLAR_KWP * (SOLAR_PF0 - gpf) / (SOLAR_PF0 - SOLAR_PF1))); if (solEst < 2) solEst = 0; }
+  const sol = solReal != null ? solReal : solEst, solOn = sol != null && sol > 1; wire('pfl-solar', solOn, ' solar'); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : (solReal == null ? '\u2248 ' : '') + fmt(sol, 0) + ' kW'; if (solOn) act.push(190); const edlOn = edl === 1; if (edlOn) act.push(50);
   const aL = act.filter(x => x < LX), aR = act.filter(x => x > LX), mono = running || solOn ? '' : ' mains';
   $('pfl-busL').setAttribute('d', 'M' + (aL.length ? Math.min(...aL) : LX) + ' 45H' + LX); $('pfl-busR').setAttribute('d', 'M' + (aR.length ? Math.max(...aR) : LX) + ' 45H' + LX);
   wire('pfl-busL', aL.length > 0, solOn && !edlOn ? ' solar' : mono); wire('pfl-busR', aR.length > 0, mono); wire('pfl-load', act.length > 0, solOn && (running || edlOn) ? ' mix' : solOn ? ' solar' : mono); $('pf-load').textContent = fmt(tot + (solOn ? sol : 0), 1) + ' kW';
