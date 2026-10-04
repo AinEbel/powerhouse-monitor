@@ -459,6 +459,9 @@ async function refresh() {
   let solEst = null;
   if (solReal == null && running && totKva > 1) { const gpf = Math.min(1, tot / totKva); solEst = Math.max(0, Math.min(SOLAR_KWP, SOLAR_KWP * (SOLAR_PF0 - gpf) / (SOLAR_PF0 - SOLAR_PF1))); if (solEst < 2) solEst = 0; }
   const sol = solReal != null ? solReal : solEst, solOn = sol != null && sol > 1; wire('pfl-solar', solOn, ' solar'); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : (solReal == null ? '\u2248 ' : '') + fmt(sol, 0) + ' kW'; if (solOn) act.push(190); const edlOn = edl === 1; if (edlOn) act.push(50);
+  // PLANT TOTAL = the AIN EBEL busbar: kW of every source added up. Solar adds kW only, so the kVAr comes from the generators alone: kVA = sqrt(kW^2 + kVAr^2).
+  { const busKw = tot + (solOn ? sol : 0), genQ = totKva > tot ? Math.sqrt(totKva * totKva - tot * tot) : 0, busKva = Math.sqrt(busKw * busKw + genQ * genQ);
+    $('totkw').textContent = fmt(busKw, 1); $('totkva').textContent = running || solOn ? fmt(busKva, 1) : '--'; $('totpf').textContent = busKva > 1 ? fmt(Math.min(1, busKw / busKva), 2) : '--'; }
   const aL = act.filter(x => x < LX), aR = act.filter(x => x > LX), mono = running || solOn ? '' : ' mains';
   $('pfl-busL').setAttribute('d', 'M' + (aL.length ? Math.min(...aL) : LX) + ' 45H' + LX); $('pfl-busR').setAttribute('d', 'M' + (aR.length ? Math.max(...aR) : LX) + ' 45H' + LX);
   wire('pfl-busL', aL.length > 0, solOn && !edlOn ? ' solar' : mono); wire('pfl-busR', aR.length > 0, mono); wire('pfl-load', act.length > 0, solOn && (running || edlOn) ? ' mix' : solOn ? ' solar' : mono); $('pf-load').textContent = fmt(tot + (solOn ? sol : 0), 1) + ' kW';
