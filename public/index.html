@@ -53,7 +53,7 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .tankrow{display:flex;flex-direction:column-reverse;gap:14px;align-items:stretch}
 .tankwrap{width:100%;max-width:760px;margin:0 auto}
 .tankwrap svg{width:100%;height:auto;display:block}
-.tkhead{display:flex;align-items:baseline;gap:16px;margin:0 0 6px 4px}
+.tkhead{display:flex;align-items:baseline;justify-content:center;gap:16px;margin:0 0 6px}
 .tkhead span{font:600 24px "Barlow Condensed",sans-serif;letter-spacing:.25em;text-transform:uppercase;color:var(--steel)}
 .tkhead b{font:400 46px "Share Tech Mono",monospace}
 .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 16px}
@@ -346,7 +346,7 @@ function build(s) {
 const tankSvg = (pct, low, T) => {
   const Y0 = 220, HH = 190, y = p => Y0 - p * HH / 100, col = low ? 'var(--low)' : 'var(--fuel)';
   let ticks = '';
-  for (let p = 0; p <= 100; p += 10) {
+  for (let p = 0; p <= 100; p += 25) {
     ticks += `<text x="40" y="${y(p) + 5}" text-anchor="end" style="font-family:'Barlow Condensed';font-size:15px;fill:#8d9aa3">${p}%</text><path d="M46 ${y(p)}h12" stroke="#8d9aa3" stroke-width="2"/>`;
   }
   return `
