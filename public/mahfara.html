@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>AL MAHFARA Power house monitor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=Share+Tech+Mono&display=swap">
+<style>
+:root{--bg:#121518;--p1:#252c31;--p2:#1a2024;--ink:#e8edf0;--steel:#8d9aa3;--line:#38424a;--yellow:#3aa0ff;--fuel:#4aa8ff;--low:#ff4d3d;--ok:#38d27a;--warn:#ffb020;--g1:#3aa0ff;--g2:#3ec6ff;--lcd:#090c0e;
+  font-family:"Barlow",system-ui,sans-serif;color:var(--ink);color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;padding:14px 14px 30px;min-height:100vh;background-color:var(--bg);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.02) 0 2px,transparent 2px 9px)}
+.wrap{max-width:1120px;margin:0 auto}
+h1,h2,.tag,th,.badge,.mono{font-family:"Barlow Condensed","Arial Narrow",sans-serif}
+.hazard{height:12px;border-radius:2px;margin-bottom:12px;background:repeating-linear-gradient(-45deg,#3aa0ff 0 14px,#15181b 14px 28px)}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:14px}
+.brand svg{width:54px;height:54px;flex:none}
+h1{font-size:34px;font-weight:700;margin:0;text-transform:uppercase;letter-spacing:.05em;line-height:1}
+.tagline{font-family:"Barlow Condensed";letter-spacing:.14em;text-transform:uppercase;color:var(--steel);font-size:14px;margin-top:4px}
+.status{display:flex;align-items:center;gap:9px;font-size:15px;color:var(--steel);background:#0c0f11;border:1px solid #3a444b;padding:7px 12px;border-radius:3px}
+.dot{width:12px;height:12px;border-radius:50%;background:#4a555c;flex:none}
+.online .dot{background:var(--ok);box-shadow:0 0 9px var(--ok)}
+.offline .dot,.error .dot{background:var(--low);box-shadow:0 0 9px var(--low)}
+.stale .dot{background:var(--warn);box-shadow:0 0 9px var(--warn)}
+.demo{background:repeating-linear-gradient(-45deg,#3aa0ff 0 16px,#2a7fd0 16px 32px);color:#06182b;font-weight:500;padding:9px 14px;border-radius:3px;margin-bottom:12px;font-size:15px;display:none}
+.alerts{display:grid;gap:8px;margin-bottom:14px}
+.alert{border-left:6px solid var(--warn);background:#1b2126;border-top:1px solid #333d44;border-bottom:1px solid #333d44;padding:9px 14px;font-size:16px}
+.alert.bad{border-left-color:var(--low);background:#2a1a19}
+.alert.okay{border-left-color:var(--ok);color:var(--steel)}
+.alert b{font-family:"Barlow Condensed";text-transform:uppercase;letter-spacing:.06em;font-size:17px;margin-right:6px}
+.panel{position:relative;border:1px solid #47525a;border-radius:4px;padding:18px 18px 16px;box-shadow:0 3px 0 #0a0c0e,inset 0 1px 0 rgba(255,255,255,.07);
+  background:
+   radial-gradient(circle at 9px 9px,#8b979f 0 1.6px,#2b3237 2.6px,transparent 3.6px),
+   radial-gradient(circle at calc(100% - 9px) 9px,#8b979f 0 1.6px,#2b3237 2.6px,transparent 3.6px),
+   radial-gradient(circle at 9px calc(100% - 9px),#8b979f 0 1.6px,#2b3237 2.6px,transparent 3.6px),
+   radial-gradient(circle at calc(100% - 9px) calc(100% - 9px),#8b979f 0 1.6px,#2b3237 2.6px,transparent 3.6px),
+   linear-gradient(180deg,var(--p1),var(--p2))}
+h2{font-size:17px;font-weight:600;margin:0 0 12px;color:var(--steel);text-transform:uppercase;letter-spacing:.12em;display:flex;align-items:center;gap:9px}
+h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
+.top{display:grid;grid-template-columns:minmax(320px,1.15fr) 1fr;gap:14px;margin-bottom:14px}
+.gens{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:840px){.top,.gens,.charts{grid-template-columns:1fr}h1{font-size:26px}}
+.lcd{display:inline-block;background:var(--lcd);border:2px solid #040506;box-shadow:inset 0 0 12px #000,0 1px 0 #3d484f;border-radius:3px;padding:8px 14px 6px}
+.big{font-family:"Share Tech Mono",monospace;color:var(--fuel);text-shadow:0 0 10px rgba(255,159,26,.45);font-size:54px;line-height:1;letter-spacing:.02em}
+.gens .big{color:#3ddc84;text-shadow:0 0 10px rgba(61,220,132,.4)}
+.rd{margin-top:14px}
+.lcd small{font-family:"Barlow Condensed";font-size:20px;color:var(--steel);margin-left:8px;letter-spacing:.06em;text-transform:uppercase}
+.sub{color:var(--steel);font-size:16px;margin-top:8px}
+.nofuel{color:var(--steel);font-size:16px;line-height:1.4;max-width:34ch}
+.tankrow{display:flex;flex-direction:column-reverse;gap:14px;align-items:stretch}
+.tankwrap{width:100%;max-width:760px;margin:0 auto}
+.tankwrap svg{width:100%;height:auto;display:block}
+.tkhead{display:flex;align-items:baseline;justify-content:center;gap:16px;margin:0 0 6px}
+.tkhead span{font:600 24px "Barlow Condensed",sans-serif;letter-spacing:.25em;text-transform:uppercase;color:var(--steel)}
+.tkhead b{font:400 46px "Share Tech Mono",monospace}
+.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 16px}
+.brandmark{flex:1;display:flex;align-items:center;justify-content:center;padding:14px 0 4px}.brandmark svg{width:100%;max-width:380px;height:auto;overflow:visible}
+@keyframes beat{0%,100%{transform:scale(1)}12%{transform:scale(1.09)}24%{transform:scale(1)}36%{transform:scale(1.05)}48%{transform:scale(1)}}
+.brandmark .hrt{transform-box:fill-box;transform-origin:center;animation:beat 2.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.brandmark .hrt{animation:none}}
+.panel.live{overflow:hidden;animation:livepulse 4s ease-in-out infinite}
+.panel.live::after{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;pointer-events:none;z-index:2;background:linear-gradient(100deg,transparent 0,rgba(61,220,132,0) 15%,rgba(130,255,185,.2) 50%,rgba(61,220,132,0) 85%,transparent 100%);transform:translateX(-120%) skewX(-18deg);opacity:0;animation:livewave 4s linear infinite}
+@keyframes livewave{0%{transform:translateX(-120%) skewX(-18deg);opacity:0}6%{opacity:1}34%{transform:translateX(300%) skewX(-18deg);opacity:1}38%,100%{transform:translateX(300%) skewX(-18deg);opacity:0}}
+@keyframes livepulse{0%,100%{border-color:#47525a}36%{border-color:#3ddc84}}
+@media (prefers-reduced-motion:reduce){.panel.live,.panel.live::after{animation:none}}
+.alarmset{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid #333d44;color:var(--steel);font-size:16px;flex-wrap:wrap}
+.alarmset label{font-family:"Barlow Condensed";text-transform:uppercase;letter-spacing:.08em;font-size:17px}
+.alarmset input{width:110px;background:#0c1012;border:1px solid #4a555c;border-radius:3px;color:var(--fuel);font-family:"Share Tech Mono",monospace;font-size:24px;padding:4px 8px;text-align:right}
+.alarmset input:focus{outline:2px solid #3aa0ff;outline-offset:1px}
+.lowalarm{margin:0 0 12px;padding:10px 14px;border:2px solid var(--low);border-left-width:8px;background:#2a1a19;color:#ffd9d4;font-size:17px;animation:alarmblink 1s steps(2,start) infinite}
+.alarmnote{margin-top:8px;color:var(--steel);font-size:15px}.alarmnote b{color:var(--ok);font-family:"Barlow Condensed";letter-spacing:.08em}.alarmnote button{margin-left:10px;background:#12171a;border:1px solid #4a555c;border-radius:3px;color:var(--ink);font-size:14px;padding:3px 10px;cursor:pointer}.alarmnote button:disabled{opacity:.6;cursor:default}
+.lowalarm[hidden]{display:none}.lowalarm b{font-family:"Barlow Condensed";text-transform:uppercase;letter-spacing:.08em;font-size:20px;color:#ff6a58;margin-right:8px}
+@keyframes alarmblink{50%{background:#4a1612;border-color:#ff6a58}}
+@media (prefers-reduced-motion:reduce){.lowalarm{animation:none}}
+.kv>div{display:flex;gap:12px;align-items:center}
+.ic{width:42px;height:42px;flex:none;padding:8px;background:#0c0f11;border:1px solid #3a444b;border-radius:3px;stroke:var(--yellow);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.kv b{display:block;font-family:"Share Tech Mono",monospace;font-size:28px;font-weight:400;line-height:1.05}
+.kv span{font-size:13px;color:var(--steel);text-transform:uppercase;letter-spacing:.06em}
+.ghead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.ghead h2{margin:0;color:var(--ink);font-size:24px}
+.tag{display:inline-flex;align-items:center;gap:8px;font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 11px;border:1px solid #4a555c;background:#0c0f11;color:var(--steel);border-radius:3px}
+.tag::before{content:"";width:10px;height:10px;border-radius:50%;background:#4a555c}
+.tag.run{color:var(--ok);border-color:#1f6b45}
+.tag.run::before{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.photo{position:relative;border:1px solid #3a444b;border-radius:3px;margin-bottom:14px;overflow:hidden;background:linear-gradient(#333d44,#1b2126)}
+.photo svg{display:block;width:100%;height:auto}
+.photo img{display:none;width:100%;height:190px;object-fit:cover}
+.photo.has img{display:block}.photo.has svg{display:none}
+.badge{position:absolute;right:8px;top:8px;background:var(--yellow);color:#111;font-weight:700;font-size:14px;letter-spacing:.06em;padding:2px 9px;text-transform:uppercase}
+.bar{height:15px;background:var(--lcd);border:1px solid #040506;margin:14px 0 6px;position:relative;overflow:hidden}
+.bar i{display:block;height:100%;width:0;transition:width .6s}
+.bar::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 9px,var(--lcd) 9px 11px)}
+table{width:100%;border-collapse:collapse;font-size:20px;margin-top:10px}
+td{font-family:"Share Tech Mono",monospace}
+th,td{padding:6px 4px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:600;color:var(--steel);font-size:14px;letter-spacing:.12em;text-transform:uppercase}
+.ph{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:9px;background:#aeb7bd!important}
+.mini{display:flex;gap:14px;margin-top:14px}
+.mini>div{flex:1;background:var(--lcd);border:1px solid #040506;padding:8px 12px;box-shadow:inset 0 0 8px #000}
+.mini b{font-family:"Share Tech Mono",monospace;font-size:26px;font-weight:400;color:var(--ink)}
+.mini span{display:block;font-size:12px;color:var(--steel);text-transform:uppercase;letter-spacing:.1em}
+.chart{width:100%;height:130px;display:block;background:#0c1012;border:1px solid #2b353b;color:var(--steel)}
+.legend{display:flex;gap:16px;font-size:14px;color:var(--steel);margin-bottom:8px;flex-wrap:wrap;text-transform:uppercase;letter-spacing:.08em}
+.legend i{display:inline-block;width:16px;height:4px;vertical-align:middle;margin-right:6px}
+.axis{display:flex;justify-content:space-between;font-size:12px;color:var(--steel);margin-top:4px}
+dl{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:9px 26px;font-size:17px}
+dt{color:var(--steel);text-transform:uppercase;letter-spacing:.06em;font-size:14px;padding-top:2px} dd{margin:0}
+footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
+/* single-line diagram */
+.flowwrap{overflow-x:auto}.flow{width:100%;min-width:600px;height:auto;display:block}
+.flow text{font-family:"Barlow Condensed",sans-serif;fill:var(--ink);letter-spacing:.06em}
+.flow .k{fill:var(--steel);font-size:14px;text-transform:uppercase}
+.flow .v{font-family:"Share Tech Mono",monospace;font-size:18px;letter-spacing:0;fill:var(--yellow)}
+.wire{stroke:#3a444b;stroke-width:5;fill:none}
+.wire.live{stroke:var(--yellow);stroke-dasharray:9 7;animation:dash .55s linear infinite}
+.wire.live.mains{stroke:var(--ok)}
+.wire.live.mix{stroke:#35d0ff;filter:drop-shadow(0 0 3px #35d0ff) drop-shadow(0 0 7px #35d0ff88)}
+.wire.live.solar{stroke:#39ff14;filter:drop-shadow(0 0 3px #39ff14) drop-shadow(0 0 7px #39ff1488)}
+@keyframes dash{to{stroke-dashoffset:-16}}
+.node{fill:#12171a;stroke:#4a555c;stroke-width:2}.node.on{stroke:var(--ok)}
+.bus{stroke:#6d7a83;stroke-width:9;stroke-linecap:round}
+/* generator drawing animation */
+.fan{transform-box:fill-box;transform-origin:center}
+.on .fan{animation:spin .45s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.smoke circle{opacity:0;transform-box:fill-box;transform-origin:center}
+.on .smoke circle{animation:rise 2.6s ease-out infinite}
+.smoke circle:nth-child(2){animation-delay:.85s!important}.smoke circle:nth-child(3){animation-delay:1.7s!important}
+@keyframes rise{0%{transform:translate(0,0) scale(.5);opacity:.6}100%{transform:translate(14px,-40px) scale(2.1);opacity:0}}
+.on .eng{animation:shake .13s linear infinite}
+@keyframes shake{50%{transform:translateY(.9px)}}
+.lamp{fill:#3a444b}.on .lamp{fill:var(--ok);filter:drop-shadow(0 0 4px var(--ok))}
+@media(prefers-reduced-motion:reduce){.on .fan,.on .smoke circle,.on .eng,.wire.live{animation:none}}
+/* trends */
+.rangebar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.rangebar button,.seg button{font:600 15px "Barlow Condensed",sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;background:#0c0f11;color:var(--steel);border:1px solid #3a444b;border-radius:3px;cursor:pointer}
+.rangebar button.on,.seg button.on{background:var(--yellow);color:#111;border-color:var(--yellow)}
+.rangebar button:disabled{opacity:.35;cursor:default}
+.rangebar .sp{flex:1}
+.seg{display:inline-flex;gap:0}.seg button{border-radius:0}.seg button:first-child{border-radius:3px 0 0 3px}.seg button:last-child{border-radius:0 3px 3px 0}
+.chead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.chead h2{margin:0}.chead .legend{margin:0}
+.cwrap{position:relative}
+.trend{width:100%;height:auto;display:block;background:#0c1012;border:1px solid #2b353b;color:var(--steel);touch-action:pan-y;cursor:crosshair}
+.trend text{font-family:"Barlow Condensed",sans-serif;fill:var(--steel);font-size:11px;letter-spacing:.04em}
+.tip{position:absolute;top:8px;pointer-events:none;background:rgba(9,12,14,.94);border:1px solid #5a666e;padding:6px 10px;font-size:15px;line-height:1.4;white-space:nowrap;display:none;z-index:2}
+.tip b{display:block;font-family:"Barlow Condensed",sans-serif;letter-spacing:.06em;color:var(--ink);margin-bottom:2px}
+.tip i{display:inline-block;width:10px;height:10px;margin-right:7px;border-radius:2px}
+.tip span{font-family:"Share Tech Mono",monospace}
+.stats{font-size:16px;margin-top:10px}.stats td{font-size:18px}
+/* refuelling log */
+.btn{font:600 15px "Barlow Condensed",sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:6px 14px;background:var(--yellow);color:#111;border-radius:3px;text-decoration:none}
+.rtop{display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.rsum{display:flex;gap:26px;flex-wrap:wrap}
+.rsum b{display:block;font-family:"Share Tech Mono",monospace;font-size:22px;font-weight:400}
+.rsum span{font-size:13px;color:var(--steel);text-transform:uppercase;letter-spacing:.06em}
+.tscroll{overflow-x:auto}
+.rlog{font-size:17px;min-width:560px}.rlog td small{display:block;font-family:"Barlow",sans-serif;font-size:13px;color:var(--steel)}
+.rlog tr.new td{background:rgba(255,194,26,.07)}
+.rlog td.add{color:var(--fuel)}
+.sitebtn{display:inline-block;margin-left:6px;padding:9px 16px;border-radius:3px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;letter-spacing:1.5px;text-decoration:none;text-transform:uppercase;white-space:nowrap;background:#3aa0ff;color:#06182b;border:1px solid #1f5f9f}
+.sitebtn:hover{background:#6bb9ff}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 5 13.5h6L10 22l9-12.5h-6z"/></symbol>
+  <symbol id="i-gen" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 9.2A4.5 4.5 0 1 0 16 13h-4"/></symbol>
+  <symbol id="i-mains" viewBox="0 0 24 24"><path d="M12 2 6 22M12 2l6 20M8.5 9h7M7 15.5h10M8.5 9l7 6.5M15.5 9l-7 6.5"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.500 6-11 6-11z"/></symbol>
+  <symbol id="i-temp" viewBox="0 0 24 24"><path d="M10 14.500V5a2 2 0 0 1 4 0v9.500a4 4 0 1 1-4 0z"/><path d="M12 9v7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.500 2"/></symbol>
+</svg>
+<div class="wrap">
+  <div class="hazard"></div>
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 54 54" aria-hidden="true"><rect x="1" y="1" width="52" height="52" rx="4" fill="#0c0f11" stroke="#47525a" stroke-width="2"/><path d="M8 44V25l9 6v-6l9 6v-6l9 6V11h7v33z" fill="#3aa0ff"/><path d="M27 33l-5 8h4l-1 5 6-8h-4l1-5z" fill="#15181b"/><rect x="39" y="6" width="7" height="6" fill="#8d9aa3"/></svg>
+      <div><h1 id="name">AL MAHFARA POWER HOUSE</h1><div class="tagline">Generator plant monitor</div></div>
+      <a class="sitebtn" id="sitebtn" href="/">AL DHOUR</a>
+    </div>
+    <div class="status" id="status"><span class="dot"></span><span id="statustext">Connecting…</span></div>
+  </header>
+  <div class="demo" id="demo">AL MAHFARA is not connected yet: no data is being read on this page.</div>
+  <div class="alerts" id="alerts"></div>
+
+  <div class="top">
+    <section class="panel" style="display:flex;flex-direction:column">
+      <h2>Plant total</h2>
+      <div class="kv">
+        <div><svg class="ic"><use href="#i-bolt"/></svg><div><b id="totkw">--</b><span>KW</span></div></div>
+        <div><svg class="ic"><use href="#i-bolt"/></svg><div><b id="totkva">--</b><span>KVA</span></div></div>
+        <div><svg class="ic"><use href="#i-gen"/></svg><div><b id="totpf">--</b><span>PF</span></div></div>
+        <div><svg class="ic"><use href="#i-drop"/></svg><div><b id="burn">--</b><span>L/H</span></div></div>
+        <div><svg class="ic"><use href="#i-clock"/></svg><div><b id="left">--</b><span>FUEL LEFT</span></div></div>
+        <div><svg class="ic"><use href="#i-temp"/></svg><div><b id="outtemp">--</b><span>OUTSIDE TEMP</span></div></div>
+      </div>
+      <div class="brandmark" aria-label="Ain Ebel Power Generators"><svg viewBox="0 84 360 134" role="img">
+        <defs>
+          <linearGradient id="brg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fd0ff"/><stop offset="1" stop-color="#2f80e0"/></linearGradient>
+          <filter id="brglow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <text x="180" y="142" text-anchor="middle" font-family="'Barlow Condensed',sans-serif" font-weight="700" font-size="58" letter-spacing="7" fill="url(#brg)" filter="url(#brglow)">AIN EBEL</text>
+        <g stroke="#6d7a83" stroke-width="2" stroke-linecap="round"><path d="M34 164H152M208 164H326"/></g>
+        <path d="M180 156 188 164 180 172 172 164Z" fill="#3aa0ff"/>
+        <circle cx="160" cy="164" r="2.6" fill="#3aa0ff"/><circle cx="200" cy="164" r="2.6" fill="#3aa0ff"/>
+        <text x="180" y="204" text-anchor="middle" font-family="'Barlow Condensed',sans-serif" font-weight="600" font-size="22" letter-spacing="7" fill="#9fb0ba">POWER GENERATORS</text>
+      </svg></div>
+    </section>
+    <section class="panel">
+      <h2>Diesel storage</h2>
+      <div class="lowalarm" id="lowalarm" role="alert" hidden></div>
+      <div class="tankrow" id="fuelbody"></div>
+      <div class="alarmset"><label for="lowset">Low fuel alarm below</label><input id="lowset" type="number" inputmode="numeric" min="0" max="4000" step="50" value="800"><span>litres</span></div>
+      <div class="alarmnote" id="alarmnote"></div>
+    </section>
+  </div>
+
+  <section class="panel"><h2>Power flow</h2><div class="flowwrap"><svg class="flow" id="flow" viewBox="-24 0 584 250"></svg></div></section>
+
+  <div class="gens" id="gens"></div>
+
+  <div id="trends" style="display:none">
+  <section class="panel" style="margin-bottom:14px"><h2>Trends</h2>
+    <div class="rangebar" id="rangebar"></div>
+    <div class="sub" id="rangelbl" style="margin-top:10px"></div>
+  </section>
+  <div class="charts">
+    <section class="panel">
+      <div class="chead"><h2>Power production</h2><div class="legend" id="pLegend"></div></div>
+      <div class="cwrap"><svg class="trend" id="cKw" viewBox="0 0 460 220"></svg><div class="tip" id="cKw-tip"></div></div>
+      <table class="stats" id="sKw"></table>
+    </section>
+    <section class="panel">
+      <div class="chead"><h2>Diesel</h2><span class="seg" id="fuelmode"><button data-m="level" class="on">Level</button><button data-m="use">Use L/h</button></span></div>
+      <div class="cwrap"><svg class="trend" id="cFuel" viewBox="0 0 460 220"></svg><div class="tip" id="cFuel-tip"></div></div>
+      <table class="stats" id="sFuel"></table>
+    </section>
+  </div>
+  </div>
+
+  <section class="panel" id="hourlyp" style="display:none"><h2>Fuel used per hour</h2><div class="sub" id="hourlysum"></div><div class="tscroll"><table class="stats" id="hourly"></table></div></section>
+
+  <section class="panel"><h2>Power house details</h2><dl id="details"></dl></section>
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = (v, d = 0) => v == null || isNaN(v) ? '--' : Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const COL = ['var(--g1)', 'var(--g2)'];
+const PH = ['#d9452f', '#e6b800', '#3f83e0'];
+let built = false, GENS = [], GX = [], LX = 260, RE = 470;
+const VID = (() => { try { let i = localStorage.getItem('vid'); if (!i) { i = Math.random().toString(36).slice(2, 12); localStorage.setItem('vid', i); } return i; } catch (e) { return Math.random().toString(36).slice(2, 12); } })();
+const pushAlarm = body => fetch('/api/mahfara/alarm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || { litres: Number($('lowset').value) || 0 }) }).then(r => r.json()).catch(() => null);
+$('lowset').addEventListener('input', () => { window.__alEdit = Date.now(); refresh(); clearTimeout(window.__alT); window.__alT = setTimeout(() => pushAlarm(), 900); });
+$('alarmnote').addEventListener('click', async e => { if (e.target.id !== 'alarmtest') return; e.target.disabled = true; e.target.textContent = 'Sending...'; const r = await pushAlarm({ test: true }); e.target.textContent = r && r.ok ? 'Sent - check your phone' : 'Could not send'; setTimeout(() => { e.target.disabled = false; e.target.textContent = 'Send test'; }, 4000); });
+
+const dur = h => h == null ? '--' : h < 1 ? Math.round(h * 60) + ' min' : Math.floor(h) + 'h ' + String(Math.round(h % 1 * 60)).padStart(2, '0') + 'm';
+function energy(H, id) {              // kWh and running hours from history samples (gaps over 10 min ignored)
+  let kwh = 0, hrs = 0;
+  for (let i = 1; i < H.length; i++) {
+    const a = H[i - 1], b = H[i], dt = (b.t - a.t) / 36e5;
+    if (dt <= 0 || dt > 1 / 6 || a[id] == null || b[id] == null) continue;
+    kwh += (a[id] + b[id]) / 2 * dt; if (a[id] > 1 || b[id] > 1) hrs += dt;
+  }
+  return { kwh, hrs };
+}
+const ago = t => { const h = (Date.now() - t) / 36e5; return h >= 1 ? Math.round(h) + ' h ago' : Math.max(1, Math.round(h * 60)) + ' min ago'; };
+
+// Generator set drawing (engine, alternator, radiator fan, exhaust). Animates while running.
+const gensetSvg = g => `
+<svg id="${g.id}-svg" class="gset" viewBox="0 0 300 140" role="img" aria-label="${g.label} generator set">
+  <rect x="0" y="122" width="300" height="18" fill="#22282c"/><path d="M0 122h300" stroke="#4a555c" stroke-width="2"/>
+  <g stroke="#0d1012" stroke-width="1"><path d="M0 131h300" opacity=".5"/></g>
+  <rect x="12" y="106" width="276" height="10" rx="2" fill="#2f383e" stroke="#59646c"/>
+  <rect x="24" y="116" width="18" height="6" fill="#1a1f22"/><rect x="258" y="116" width="18" height="6" fill="#1a1f22"/>
+  <g class="eng">
+    <rect x="18" y="56" width="72" height="50" rx="7" fill="#3f6f8f" stroke="#28485d" stroke-width="2"/>
+    <path d="M32 58v46M44 58v46M56 58v46M68 58v46M80 58v46" stroke="#2f5670" stroke-width="2"/>
+    <path d="M52 68l-9 14h7l-2 11 12-16h-7l3-9z" fill="#3aa0ff" transform="translate(10 -2)"/>
+    <rect x="90" y="66" width="14" height="30" fill="#59646c"/>
+    <rect x="102" y="46" width="112" height="60" rx="4" fill="#3aa0ff" stroke="#1f5f9f" stroke-width="2"/>
+    <rect x="112" y="34" width="92" height="14" rx="2" fill="#2a7fd0" stroke="#1b4f87"/>
+    <path d="M124 34v14M138 34v14M152 34v14M166 34v14M180 34v14M194 34v14" stroke="#1b4f87" stroke-width="1.5"/>
+    <rect x="112" y="60" width="92" height="26" rx="2" fill="#16191b"/>
+    <text x="158" y="80" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="21" letter-spacing="2" fill="#3aa0ff">${g.label.replace(/^GENERATOR/, 'GEN')}</text>
+    <circle cx="122" cy="98" r="3.500" fill="#1b4f87"/><circle cx="194" cy="98" r="3.500" fill="#1b4f87"/>
+    <rect x="214" y="40" width="70" height="66" rx="3" fill="#2a3237" stroke="#59646c" stroke-width="2"/>
+    <path d="M220 48h58M220 98h58" stroke="#3b464d" stroke-width="2"/>
+    <circle cx="249" cy="73" r="26" fill="#0d1012" stroke="#59646c" stroke-width="2"/>
+    <g class="fan" fill="#8d9aa3"><ellipse cx="249" cy="59" rx="6" ry="13"/><ellipse cx="249" cy="59" rx="6" ry="13" transform="rotate(90 249 73)"/><ellipse cx="249" cy="59" rx="6" ry="13" transform="rotate(180 249 73)"/><ellipse cx="249" cy="59" rx="6" ry="13" transform="rotate(270 249 73)"/></g>
+    <circle cx="249" cy="73" r="4.500" fill="#59646c"/>
+  </g>
+  <rect x="170" y="10" width="9" height="26" fill="#59646c"/><rect x="167" y="7" width="15" height="5" rx="1" fill="#6d7a83"/>
+  <g class="smoke" fill="#a8b3ba"><circle cx="174" cy="6" r="5"/><circle cx="174" cy="6" r="5"/><circle cx="174" cy="6" r="5"/></g>
+  <circle class="lamp" cx="18" cy="22" r="6" stroke="#0d1012" stroke-width="2"/>
+  <path d="M262 8h16l-8 14z" fill="#3aa0ff" transform="translate(-224 4)"/>
+</svg>`;
+
+function build(s) {
+  $('gens').innerHTML = s.generators.map((g, n) => `
+    <section class="panel">
+      <div class="ghead"><h2>${g.label}</h2><span class="tag" id="${g.id}-tag">--</span></div>
+      <div class="photo" id="${g.id}-photo">${gensetSvg(g)}<img src="photos/${g.id}.jpg" alt="${g.label} generator" onload="this.parentNode.classList.add('has')" onerror="this.remove()">${g.ratedKva ? `<span class="badge">${fmt(g.ratedKva)} kVA</span>` : ''}</div>
+      <div class="lcd"><span class="big" id="${g.id}-kw">--</span><small>kW</small></div>
+      <div class="bar" id="${g.id}-barwrap"><i id="${g.id}-bar" style="background:${COL[n % 2]}"></i></div>
+      <div class="sub" id="${g.id}-load" style="margin-top:0"></div>
+      <table><thead><tr><th></th><th>Volts</th><th>Amps</th></tr></thead><tbody>
+        ${[1, 2, 3].map(p => `<tr><td><i class="ph" style="background:${PH[p - 1]}"></i>L${p}</td><td id="${g.id}-v${p}">--</td><td id="${g.id}-i${p}">--</td></tr>`).join('')}
+      </tbody></table>
+      <table class="rd"><tbody>
+        ${[['freq', 'Frequency (Hz)', '#38c8e6'], ['hours', 'Engine hours', '#b388ff'], ['kva', 'kVA now', '#2f80e0'], ['pf', 'Power factor', '#ff6fb5']].map(([k, l, c]) => `<tr><td><i class="ph" style="background:${c}"></i>${l}</td><td id="${g.id}-${k}">--</td></tr>`).join('')}
+      </tbody></table>
+    </section>`).join('');
+  GENS = s.generators;
+  if (HD) drawTrends();
+  // single-line power flow: mains -> busbar -> load, generators feed the busbar from below
+  const n = s.generators.length, gx = i => 190 + (i + 1) * 420 / (n + 1); GX = s.generators.map((g, i) => gx(i)); LX = (190 + gx(0)) / 2; RE = gx(n - 1);
+  $('flow').innerHTML = `<g transform="translate(0 80)">
+    <path class="bus" d="M50 45H${RE}"/><path id="pfl-busL" class="wire" d="M50 45H${LX}"/><path id="pfl-busR" class="wire" d="M${RE} 45H${LX}"/>
+    <path id="pfl-load" class="wire" d="M${LX} 40.5V-4"/>
+    <g transform="translate(${LX - 70} -70)"><rect class="node" x="0" y="0" width="140" height="66" rx="3"/>
+    <path d="M22 10 14 34h9l-3 22 15-28h-9l4-18z" fill="#3aa0ff"/>
+    <text class="k" x="44" y="26">AIN EBEL</text><text class="v" id="pf-load" x="44" y="50">--</text></g>
+    ${s.generators.map((g, i) => `
+    <path id="pfl-${g.id}" class="wire" d="M${gx(i)} 100V49.5"/>
+    <rect id="pfb-${g.id}" class="node" x="${gx(i) - 66}" y="100" width="132" height="58" rx="3"/>
+    <circle cx="${gx(i) - 40}" cy="129" r="17" fill="none" stroke="#3aa0ff" stroke-width="2.4"/>
+    <text x="${gx(i) - 40}" y="136" text-anchor="middle" style="font-size:21px;font-weight:700;fill:#3aa0ff">G</text>
+    <text class="k" x="${gx(i) - 15}" y="123"${g.label.length > 6 ? ' textLength="74" lengthAdjust="spacingAndGlyphs"' : ''}>${g.label}</text><text class="v" id="pf-${g.id}" x="${gx(i) - 15}" y="146" style="font-size:16px">--</text>`).join('')}
+    <path id="pfl-solar" class="wire" d="M190 100V49.5"/>
+    <rect id="pfb-solar" class="node" x="124" y="100" width="132" height="58" rx="3"/>
+    <circle cx="150" cy="129" r="17" fill="none" stroke="#3aa0ff" stroke-width="2.4"/>
+    <g stroke="#3aa0ff" stroke-width="2" fill="none" stroke-linecap="round"><circle cx="150" cy="129" r="4.5"/><path d="M150 118v3M150 137v3M139 129h3M158 129h3M142.2 121.2l2 2M157.8 121.2l-2 2M142.2 136.8l2-2M157.8 136.8l-2-2"/></g>
+    <text class="k" x="175" y="123" style="font-size:11px;letter-spacing:0;text-transform:none">SOLAR 50 kWp</text><text class="v" id="pf-solar" x="175" y="146" style="font-size:16px">-- kW</text>
+    <path id="pfl-edl" class="wire" d="M50 100V49.5"/>
+    <rect id="pfb-edl" class="node" x="-16" y="100" width="132" height="58" rx="3"/>
+    <circle cx="10" cy="129" r="17" fill="none" stroke="#3aa0ff" stroke-width="2.4"/>
+    <g transform="translate(10 129) scale(.45) translate(-38 -46)" stroke="#3aa0ff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M38 20 27 72M38 20l11 52M31 34h14M29 47h18M31 34l14 13M45 34 31 47"/></g>
+    <text class="k" x="35" y="123" style="font-size:12px">EDL mains</text><text class="v" id="pf-edl" x="35" y="146" style="font-size:16px">--</text></g>`;
+  built = true;
+}
+
+const tankSvg = (pct, low, T) => {
+  const Y0 = 220, HH = 190, y = p => Y0 - p * HH / 100, col = low ? 'var(--low)' : 'var(--fuel)';
+  let ticks = '';
+  for (let p = 0; p <= 100; p += 25) {
+    ticks += `<text x="40" y="${y(p) + 5}" text-anchor="end" style="font-family:'Barlow Condensed';font-size:15px;fill:#8d9aa3">${p}%</text><path d="M46 ${y(p)}h12" stroke="#8d9aa3" stroke-width="2"/>`;
+  }
+  return `
+<div class="tankwrap">
+<div class="tkhead"><span>Diesel</span><b style="color:${low ? 'var(--low)' : 'var(--fuel)'}">${fmt(pct, 0)}%</b></div>
+<svg viewBox="0 0 620 262" role="img" aria-label="Diesel tank level">
+  <defs><clipPath id="tk"><rect x="84" y="30" width="500" height="190" rx="64"/></clipPath></defs>
+  <path d="M150 216l-14 36h54l-8-36zM478 216l-8 36h54l-14-36z" fill="#2f383e" stroke="#59646c" stroke-width="2"/>
+  <path d="M60 254h540" stroke="#4a555c" stroke-width="3"/>
+  <rect x="310" y="12" width="48" height="18" fill="#59646c" stroke="#3a444b"/><rect x="304" y="6" width="60" height="8" rx="2" fill="#8d9aa3"/>
+  <rect x="84" y="30" width="500" height="190" rx="64" fill="#1a2024" stroke="#8d9aa3" stroke-width="4"/>
+  <g clip-path="url(#tk)"><rect x="80" y="${y(pct)}" width="510" height="${pct * HH / 100 + 4}" fill="${col}" opacity=".92"/>
+    <path d="M84 ${y(pct)}h500" stroke="#fff" stroke-width="3" opacity=".35"/>
+</g>
+  ${ticks}
+  <path d="M62 ${y(pct) - 8}l16 8-16 8z" fill="#3aa0ff" stroke="#1b4f87" stroke-width="1.5"/>
+</svg>
+</div>`;
+};
+
+const STUB = () => ({
+  site: { name: 'AL MAHFARA POWER HOUSE', tankLitres: 4000, ratedKva: null, lowFuelHours: 12, details: { 'Site': 'AL MAHFARA', 'FBox serial': '300223051481', 'Status': 'Not connected yet' } },
+  generators: [{ id: 'm1', label: 'GENERATOR 1', ratedKva: null }, { id: 'm2', label: 'GENERATOR 2', ratedKva: null }],
+  decimals: { v1: 0, v2: 0, v3: 0, i1: 1, i2: 1, i3: 1, freq: 1, kw: 1, hours: 0, min: 0, sec: 0, fuel_l: 0, fuel_counter: 0, edl: 0 },
+  demo: true, now: Date.now(), pollSeconds: 10, online: 0,
+  fuelToday: { day: new Date().toISOString().slice(0, 10), since: Date.now(), total: 0, refuelled: 0, curHour: new Date().getHours(), kwh: 0, month: { month: '', final: false, kwh: 0, litres: 0, days: 0 }, hours: [], rate: null, prev: null },
+  alarm: { litres: 0, push: false, active: false }, conn: 'stale', error: null, updated: null, values: {}, history: []
+});
+async function refresh() {
+  let s;
+  try { s = STUB(); }
+  catch (e) { setStatus('error', 'Cannot reach the monitor server'); return; }
+  if (!built) build(s);
+  document.title = s.site.name + ' monitor'; $('name').textContent = s.site.name;
+  $('demo').style.display = s.demo ? 'block' : 'none';
+  const v = s.values, dp = k => s.decimals[k] ?? 0, alerts = [];
+
+  // connection
+  const age = s.updated ? Math.round((s.now - s.updated) / 1000) : null;
+  let cls = s.conn, text = 'Online, updated ' + age + ' s ago';
+  if (s.conn === 'offline') { text = 'FBox offline'; alerts.push(['bad', 'FBox is offline', 'Readings below are the last values received.']); }
+  else if (s.conn === 'error') { text = 'Data error'; alerts.push(['bad', 'Cannot read the FBox', s.error || '']); }
+  else if (age == null) { cls = 'stale'; text = 'Waiting for data'; }
+  else if (age > 90) { cls = 'stale'; text = 'Data is ' + Math.round(age / 60) + ' min old'; }
+  setStatus(cls, text);
+
+  // fuel (the FBox reports litres)
+  const L = v.fuel_l, T = s.site.tankLitres, H = s.history;
+  const pct = L != null && T ? Math.max(0, Math.min(100, L / T * 100)) : null;
+  const f = H.filter(x => x.fuel != null && x.t > Date.now() - 3 * 36e5);
+  // fuel use by formula: 0.278 litres per hour for every kW of load
+  const LPKW = 0.278;
+  const loadKw = GENS.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0);
+  const rate = loadKw > 0 ? loadKw * LPKW : null;
+  const hl = rate && L != null ? L / rate : null;
+  if (s.alarm && document.activeElement !== $('lowset') && Date.now() - (window.__alEdit || 0) > 4000 && Number($('lowset').value) !== s.alarm.litres) $('lowset').value = s.alarm.litres;   // the alarm level is shared: every viewer shows the server's value
+  const lowAt = parseFloat($('lowset').value), alarm = L != null && lowAt > 0 && L < lowAt;
+  const low = alarm || (pct != null && pct < 15) || (hl != null && hl < s.site.lowFuelHours);
+  $('lowalarm').hidden = !alarm;
+  if (s.alarm) {
+    const nt = $('alarmnote'), pk = String(s.alarm.push);
+    if (nt.dataset.push !== pk) { nt.dataset.push = pk; nt.innerHTML = s.alarm.push ? 'Phone notification: <b>ON</b> <button id="alarmtest" type="button">Send test</button>' : 'Phone notification: not set up yet'; }
+  }
+  if (alarm) { $('lowalarm').innerHTML = '<div style="font-family:Barlow Condensed;font-weight:600;letter-spacing:.14em;color:#ffb3a8;font-size:16px">AL DHOUR POWER PLANT</div><div style="font-family:Barlow Condensed;font-weight:700;letter-spacing:.1em;color:#ff6a58;font-size:30px;line-height:1.1">LOW FUEL ALARM</div><div>' + fmt(L, 0) + ' L left, below your alarm level of ' + fmt(lowAt, 0) + ' L.</div>'; alerts.unshift(['bad', 'AL DHOUR POWER PLANT - LOW FUEL ALARM', fmt(L, 0) + ' L left, below your alarm level of ' + fmt(lowAt, 0) + ' L.']); }
+  const fm = s.fuelToday && s.fuelToday.month, mn = fm ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+fm.month.slice(5, 7) - 1] + (fm.final ? ' (final)' : '') : '';
+  $('fuelbody').innerHTML = (pct == null ? '' : tankSvg(pct, low, T)) + (L == null
+    ? `<div class="nofuel">No fuel reading. Check that DIESEL (LITERS) is in the FUEL TANK group.</div>`
+    : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px"><div><div style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--steel);margin-bottom:3px">Litres</div><div class="lcd" style="display:block;padding:5px 9px 3px"><b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);${low ? 'color:var(--low);text-shadow:0 0 10px rgba(255,77,61,.5)' : ''}">${fmt(L, dp('fuel_l'))} L</b></div></div><div><div style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--steel);margin-bottom:3px">Counter</div><div class="lcd" style="display:block;padding:5px 9px 3px"><b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);">${fmt(v.fuel_counter, dp('fuel_counter'))}</b></div></div><div><div style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--steel);margin-bottom:3px">kWh production today</div><div class="lcd" style="display:block;padding:5px 9px 3px"><b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);">${s.fuelToday && s.fuelToday.day ? fmt(s.fuelToday.kwh, 0) + ' kWh' : '--'}</b></div></div><div><div style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--steel);margin-bottom:3px">Consumption today</div><div class="lcd" style="display:block;padding:5px 9px 3px"><b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);">${s.fuelToday && s.fuelToday.day ? fmt(s.fuelToday.total, 0) + ' L' : '--'}</b></div></div><div><div style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--steel);margin-bottom:3px">${fm ? 'Monthly kWh ' + mn : 'Monthly kWh'}</div><div class="lcd" style="display:block;padding:5px 9px 3px"><b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);">${fm ? fmt(fm.kwh, 0) + ' kWh' : '--'}</b></div></div><div><div style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--steel);margin-bottom:3px">${fm ? 'Monthly consumption ' + mn : 'Monthly consumption'}</div><div class="lcd" style="display:block;padding:5px 9px 3px"><b style="font-family:'Share Tech Mono',monospace;font-size:24px;font-weight:400;color:var(--fuel);">${fm ? fmt(fm.litres, 0) + ' L' : '--'}</b></div></div></div>`);
+  renderHourly(s);
+  if (hl != null && hl < s.site.lowFuelHours) alerts.push(['bad', 'Low fuel', 'About ' + fmt(hl, 1) + ' hours left at the current use.']);
+  else if (pct != null && pct < 15) alerts.push(['bad', 'Low fuel', fmt(pct, 0) + '% left.']);
+  $('burn').textContent = rate ? fmt(rate, 1) : '0';
+  $('left').textContent = hl == null ? '--' : hl >= 48 ? Math.floor(hl / 24) + ' d ' + Math.round(hl % 24) + ' h' : Math.floor(hl) + ' h ' + Math.round(hl % 1 * 60) + ' m';
+
+  // mains (EDL)
+  const edl = v.edl;
+  const wire = (id, live, extra) => { const e = $(id); if (e) e.setAttribute('class', 'wire' + (live ? ' live' + (extra || '') : '')); };
+  wire('pfl-edl', edl === 1, ' mains'); $('pfb-edl').setAttribute('class', 'node' + (edl === 1 ? ' on' : '')); $('pf-edl').textContent = edl == null ? '--' : edl ? 'ON' : 'OFF';
+
+  // generators
+  let tot = 0, running = 0, totKva = 0, totKwh = 0; const act = [];
+  s.generators.forEach(g => {
+    const k = n => v[g.id + '.' + n], kw = k('kw'), st = k('status');
+    const on = st != null ? st === 1 : kw != null && kw > 1;
+    if (on) { running++; const gi = s.generators.indexOf(g); if (GX[gi] != null) act.push(GX[gi]); } if (kw != null) tot += kw;
+    $(g.id + '-svg').setAttribute('class', 'gset' + (on ? ' on' : '')); $(g.id + '-photo').closest('.panel').classList.toggle('live', on);
+    wire('pfl-' + g.id, on); $('pfb-' + g.id).setAttribute('class', 'node' + (on ? ' on' : ''));
+    $('pf-' + g.id).textContent = !on ? 'STOPPED' : fmt(kw, 0) + ' kW';
+    $(g.id + '-kw').textContent = fmt(kw, dp('kw'));
+    $(g.id + '-tag').textContent = st == null && kw == null ? 'No data' : on ? 'Running' : 'Stopped';
+    $(g.id + '-tag').className = 'tag' + (on ? ' run' : '');
+    const ratedKw = g.ratedKva ? g.ratedKva * 0.8 : null;
+    const load = kw == null || !ratedKw ? null : Math.min(100, kw / ratedKw * 100);
+    $(g.id + '-barwrap').style.display = load == null ? 'none' : '';
+    if (load != null) $(g.id + '-bar').style.width = load + '%';
+    $(g.id + '-load').textContent = !on ? 'Not producing power' : load != null ? Math.round(load) + '% of ' + fmt(ratedKw) + ' kW rated' : '';
+    [1, 2, 3].forEach(p => { $(g.id + '-v' + p).textContent = fmt(k('v' + p), 0); $(g.id + '-i' + p).textContent = fmt(k('i' + p), 1); });
+    $(g.id + '-freq').textContent = fmt(k('freq'), 1); $(g.id + '-hours').textContent = fmt(k('hours'), 0);
+    const pv = [1, 2, 3].map(p => k('v' + p)), pi = [1, 2, 3].map(p => k('i' + p)), okp = pv.every(x => x != null) && pi.every(x => x != null);
+    const kva = okp ? pv.reduce((a, x, i) => a + x * pi[i], 0) / 1000 : null;
+    totKva += on && kva ? kva : 0;
+    $(g.id + '-kva').textContent = on && kva != null ? fmt(kva, 1) : '--';
+    $(g.id + '-pf').textContent = on && kva > 1 && kw != null ? fmt(Math.min(1, kw / kva), 2) : '--';
+    const e = energy(H, g.id); totKwh += e.kwh;
+    if (on) {
+      const vs = [1, 2, 3].map(p => k('v' + p)).filter(x => x != null), is = [1, 2, 3].map(p => k('i' + p)).filter(x => x != null);
+      if (vs.some(x => x < 207 || x > 253)) alerts.push(['warn', g.label + ' voltage out of range', 'Phase voltage outside 207 to 253 V.']);
+      if (k('freq') != null && Math.abs(k('freq') - 50) > 1.5) alerts.push(['warn', g.label + ' frequency off', fmt(k('freq'), 1) + ' Hz, expected 50.']);
+      if (is.length === 3) { const a = is.reduce((x, y) => x + y) / 3; if (a > 5 && Math.max(...is.map(x => Math.abs(x - a))) / a > 0.25) alerts.push(['warn', g.label + ' phases unbalanced', 'One phase differs more than 25% from the average current.']); }
+      if (load != null && load > 90) alerts.push(['warn', g.label + ' heavily loaded', Math.round(load) + '% of rated power.']);
+    }
+  });
+  $('totkva').textContent = running ? fmt(totKva, 1) : '--';
+  $('totpf').textContent = running && totKva > 1 ? fmt(Math.min(1, tot / totKva), 2) : '--';
+  $('totkw').textContent = fmt(tot, 1);
+  // Solar estimate until the solar meter is connected: solar pushes only kW (no kVAr), so the generators' power factor falls from SOLAR_PF0 (no solar) to SOLAR_PF1 (solar at full SOLAR_KWP).
+  const SOLAR_KWP = 50, SOLAR_PF0 = 0.98, SOLAR_PF1 = 0.66, solReal = v['solar.kw'];
+  let solEst = null;
+  if (solReal == null && running && totKva > 1) { const gpf = Math.min(1, tot / totKva); solEst = Math.max(0, Math.min(SOLAR_KWP, SOLAR_KWP * (SOLAR_PF0 - gpf) / (SOLAR_PF0 - SOLAR_PF1))); if (solEst < 2) solEst = 0; }
+  const sol = solReal != null ? solReal : solEst, solOn = sol != null && sol > 1; wire('pfl-solar', solOn, ' solar'); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : (solReal == null ? '\u2248 ' : '') + fmt(sol, 0) + ' kW'; if (solOn) act.push(190); const edlOn = edl === 1; if (edlOn) act.push(50);
+  // PLANT TOTAL = the AIN EBEL busbar: kW of every source added up. Solar adds kW only, so the kVAr comes from the generators alone: kVA = sqrt(kW^2 + kVAr^2).
+  { const busKw = tot + (solOn ? sol : 0), genQ = totKva > tot ? Math.sqrt(totKva * totKva - tot * tot) : 0, busKva = Math.sqrt(busKw * busKw + genQ * genQ);
+    $('totkw').textContent = fmt(busKw, 1); $('totkva').textContent = running || solOn ? fmt(busKva, 1) : '--'; $('totpf').textContent = busKva > 1 ? fmt(Math.min(1, busKw / busKva), 2) : '--'; }
+  const aL = act.filter(x => x < LX), aR = act.filter(x => x > LX), mono = running || solOn ? '' : ' mains';
+  $('pfl-busL').setAttribute('d', 'M' + (aL.length ? Math.min(...aL) : LX) + ' 45H' + LX); $('pfl-busR').setAttribute('d', 'M' + (aR.length ? Math.max(...aR) : LX) + ' 45H' + LX);
+  wire('pfl-busL', aL.length > 0, solOn && !edlOn ? ' solar' : mono); wire('pfl-busR', aR.length > 0, mono); wire('pfl-load', act.length > 0, solOn && (running || edlOn) ? ' mix' : solOn ? ' solar' : mono); $('pf-load').textContent = fmt(tot + (solOn ? sol : 0), 1) + ' kW';
+
+  $('alerts').innerHTML = (alerts.length ? alerts : [['okay', 'No alerts', 'Everything reported is within normal range.']])
+    .map(a => `<div class="alert ${a[0]}"><b>${a[1]}</b> ${a[2]}</div>`).join('');
+
+  // details
+  $('details').innerHTML = Object.entries(s.site.details).map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')
+;
+  $('foot').textContent = 'Page refreshes every 5 seconds. Plant data refreshes from the FBox every ' + s.pollSeconds + ' seconds.';
+}
+// ---- trends: time range, back/forward, hover read-out, min / max / average ----
+const R = { hours: 24, end: null, mode: 'level' };
+const RANGES = [[1, '1 h'], [6, '6 h'], [24, '24 h'], [168, '7 d'], [720, '30 d']];
+let HD = null;
+const hh = h => String(h).padStart(2, '0') + ':00 - ' + String((h + 1) % 24).padStart(2, '0') + ':00';
+const hm = t => new Date(t).toLocaleTimeString('en-GB', { timeZone: 'Asia/Beirut', hour: '2-digit', minute: '2-digit' });
+const lpk = (l, k) => k > 0 ? fmt(l / k, 3) : '--';
+function renderHourly(s) {
+  const f = s.fuelToday, P = $('hourlyp');
+  P.style.display = 'none'; return;     // hidden on purpose, the code is kept: delete this line to show the hourly table again
+  if (!f || !f.day) { P.style.display = 'none'; return; }
+  P.style.display = '';
+  const big = x => '<b style="color:var(--fuel);font-family:\'Share Tech Mono\',monospace;font-size:22px;font-weight:400">' + x + '</b>';
+  $('hourlysum').innerHTML = 'Today since ' + hm(f.since) + ': produced ' + big(fmt(f.kwh, 0) + ' kWh') + ', fuel used ' + big(fmt(f.total, 0) + ' L') + ', ' + big(lpk(f.total, f.kwh)) + ' L per kWh'
+    + (f.rate != null ? ' &nbsp;&middot; now ' + fmt(f.rate, 1) + ' L/h' : '') + (f.refuelled ? ' &nbsp;&middot; refuelled ' + fmt(f.refuelled, 0) + ' L (not counted as use)' : '')
+    + '. Counted every minute, starts again at 00:00 (Lebanon time).';
+  const rows = f.hours.slice().reverse().map(r => '<tr><td>' + hh(r.h) + (r.h === f.curHour ? ' <small style="color:var(--steel)">now</small>' : '') + '</td><td>' + fmt(r.kwh, 0) + '</td><td>' + fmt(r.used, 0) + '</td><td>' + lpk(r.used, r.kwh) + '</td></tr>');
+  if (f.prev) rows.push('<tr><td>Yesterday (' + f.prev.day + ')</td><td>' + fmt(f.prev.kwh || 0, 0) + '</td><td>' + fmt(f.prev.total, 0) + '</td><td>' + lpk(f.prev.total, f.prev.kwh) + '</td></tr>');
+  $('hourly').innerHTML = '<thead><tr><th style="text-align:left">Hour (Lebanon time)</th><th>Produced (kWh)</th><th>Fuel used (L)</th><th>L per kWh</th></tr></thead><tbody>' + rows.join('') + '</tbody>';
+}
+const fdt = t => new Date(t).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const ftick = (t, span) => span <= 36 * 36e5 ? new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short' });
+
+function rangeBar() {
+  $('rangebar').innerHTML = RANGES.map(([h, l]) => `<button data-h="${h}" class="${R.hours === h ? 'on' : ''}">${l}</button>`).join('') +
+    `<span class="sp"></span><button data-a="back" title="Go back in time">&#9664; Back</button><button data-a="fwd" ${R.end ? '' : 'disabled'} title="Go forward">Forward &#9654;</button><button data-a="now" ${R.end ? '' : 'disabled'}>Now</button>`;
+}
+$('rangebar').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const span = R.hours * 36e5;
+  if (b.dataset.h) R.hours = +b.dataset.h;
+  else if (b.dataset.a === 'back') R.end = (R.end || Date.now()) - span / 2;
+  else if (b.dataset.a === 'fwd') { R.end += span / 2; if (R.end > Date.now() - 60000) R.end = null; }
+  else R.end = null;
+  rangeBar(); loadHist();
+});
+$('fuelmode').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  R.mode = b.dataset.m; [...$('fuelmode').children].forEach(x => x.classList.toggle('on', x === b)); drawTrends();
+});
+
+async function loadHist() {
+  const to = R.end || Date.now(), from = to - R.hours * 36e5;
+  try {
+    const r = await fetch('/api/mahfara/history?from=' + Math.round(from) + '&to=' + Math.round(to), { cache: 'no-store' });
+    if (!r.ok) throw 0; HD = await r.json(); HD.reqFrom = from; HD.reqTo = to;
+  } catch (e) { return; }
+  drawTrends();
+}
+
+function consumption(pts, size) {        // litres per hour, from the level change over a 15 minute (or longer) window
+  const W = Math.max(15 * 60000, 3 * size), out = []; let j = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]; while (pts[j].t < p.t - W) j++;
+    const a = pts[j]; let v = null;
+    if (a.fuel != null && p.fuel != null && p.t - a.t >= W / 2) { const d = (a.fuel - p.fuel) / ((p.t - a.t) / 36e5); if (d >= 0 && d < 500) v = d; }
+    out.push({ t: p.t, v });
+  }
+  return out;
+}
+const sstat = vals => { const v = vals.filter(x => x != null); return v.length ? { min: Math.min(...v), max: Math.max(...v), avg: v.reduce((a, b) => a + b, 0) / v.length } : {}; };
+
+function statsTable(id, cols) {
+  const c = (o, k) => o[k] == null ? '--' : fmt(o[k], o.d) + ' ' + o.unit;
+  $(id).innerHTML = '<thead><tr><th></th>' + cols.map(x => `<th>${x.label}</th>`).join('') + '</tr></thead><tbody>' +
+    [['Minimum', 'min'], ['Maximum', 'max'], ['Average', 'avg']].map(([l, k]) => `<tr><td>${l}</td>${cols.map(x => `<td>${c(x, k)}</td>`).join('')}</tr>`).join('') + '</tbody>';
+}
+
+function chart(id, list, o) {            // list: [{label,color,dash,pts:[{t,v}]}]
+  const svg = $(id), W = 460, H = 220, L = 46, RR = 10, T = 10, B = 26, from = HD.from, to = HD.to, span = to - from;
+  const all = list.flatMap(s => s.pts.filter(p => p.v != null));
+  svg._m = null; $(id + '-tip').style.display = 'none';
+  if (all.length < 2) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" style="font-size:13px" opacity=".7">No data in this period</text>`; return; }
+  let lo = o.min ?? Math.min(...all.map(p => p.v)), hi = Math.max(...all.map(p => p.v));
+  hi = o.max ?? (hi * 1.08); if (hi - lo < 1e-6) hi = lo + 1;
+  const x = t => L + (t - from) / span * (W - L - RR), y = v => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  const gap = Math.max(10 * 60000, 4 * HD.size);
+  let g = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = lo + (hi - lo) * i / 4, yy = y(v);
+    g += `<path d="M${L} ${yy.toFixed(1)}H${W - RR}" stroke="#26313a" stroke-width="1"/><text x="${L - 6}" y="${(yy + 4).toFixed(1)}" text-anchor="end">${fmt(v, o.tick)}</text>`;
+  }
+  for (let i = 0; i <= 4; i++) {
+    const t = from + span * i / 4, xx = x(t);
+    g += `<text x="${xx.toFixed(1)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}">${ftick(t, span)}</text>`;
+  }
+  list.forEach(s => {
+    let d = '', prev = null;
+    s.pts.forEach(p => { if (p.v == null) { prev = null; return; } d += (prev == null || p.t - prev > gap ? 'M' : 'L') + x(p.t).toFixed(1) + ' ' + y(p.v).toFixed(1); prev = p.t; });
+    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" ${s.dash ? 'stroke-dasharray="' + s.dash + '"' : ''} stroke-linejoin="round"/>`;
+  });
+  g += `<g id="${id}-x" style="display:none"><path stroke="#8d9aa3" stroke-width="1" stroke-dasharray="3 3" d="M0 ${T}V${H - B}"/>${list.map((s, i) => `<circle r="4" fill="${s.color}" stroke="#0c1012" stroke-width="2" cx="0" cy="0" id="${id}-d${i}"/>`).join('')}</g>`;
+  svg.innerHTML = g;
+  svg._m = { list, x, y, W, L, RR, T, B, H, from, to, o };
+}
+
+function hover(svg, e) {
+  const m = svg._m, tip = $(svg.id + '-tip'), xg = $(svg.id + '-x'); if (!m) return;
+  const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * m.W;
+  if (px < m.L || px > m.W - m.RR) { tip.style.display = 'none'; xg.style.display = 'none'; return; }
+  const t = m.from + (px - m.L) / (m.W - m.L - m.RR) * (m.to - m.from), base = m.list[0].pts;
+  let bi = 0, bd = Infinity; base.forEach((p, i) => { const d = Math.abs(p.t - t); if (d < bd) { bd = d; bi = i; } });
+  const pt = base[bi], xx = m.x(pt.t);
+  xg.style.display = ''; xg.firstChild.setAttribute('d', `M${xx.toFixed(1)} ${m.T}V${m.H - m.B}`);
+  let rows = '';
+  m.list.forEach((s, i) => {
+    const p = s.pts[bi], dot = $(svg.id + '-d' + i);
+    if (p && p.v != null) { dot.style.display = ''; dot.setAttribute('cx', xx.toFixed(1)); dot.setAttribute('cy', m.y(p.v).toFixed(1)); } else dot.style.display = 'none';
+    rows += `<div><i style="background:${s.color}"></i>${s.label} <span>${p && p.v != null ? fmt(p.v, m.o.d) + ' ' + m.o.unit : '--'}</span></div>`;
+  });
+  tip.innerHTML = `<b>${fdt(pt.t)}</b>${rows}`; tip.style.display = 'block';
+  const w = tip.offsetWidth, cw = svg.clientWidth, left = xx / m.W * cw;
+  tip.style.left = Math.max(4, Math.min(cw - w - 4, left > cw / 2 ? left - w - 12 : left + 12)) + 'px';
+}
+['cKw', 'cFuel'].forEach(id => {
+  const svg = $(id);
+  svg.addEventListener('pointermove', e => hover(svg, e));
+  svg.addEventListener('pointerdown', e => hover(svg, e));
+  svg.addEventListener('pointerleave', () => { $(id + '-tip').style.display = 'none'; const xg = $(id + '-x'); if (xg) xg.style.display = 'none'; });
+});
+
+function drawTrends() {
+  if (!HD || !GENS.length) return;
+  const P = HD.points, span = HD.to - HD.from;
+  const kwList = [...GENS.map((g, n) => ({ label: g.label, color: COL[n % 2], pts: P.map(p => ({ t: p.t, v: p[g.id] })) })),
+                  { label: 'Total', color: '#e8edf0', dash: '6 4', pts: P.map(p => ({ t: p.t, v: p.total })) }];
+  $('pLegend').innerHTML = kwList.map(s => `<span><i style="background:${s.color}"></i>${s.label}</span>`).join('');
+  chart('cKw', kwList, { min: 0, unit: 'kW', d: 1, tick: 0 });
+  statsTable('sKw', kwList.map((s, i) => { const k = i < GENS.length ? GENS[i].id : 'total'; return { label: s.label, unit: 'kW', d: 1, ...(HD.stats[k] || {}) }; }));
+  if (R.mode === 'level') {
+    chart('cFuel', [{ label: 'Diesel', color: 'var(--fuel)', pts: P.map(p => ({ t: p.t, v: p.fuel })) }], { unit: 'L', d: 0, tick: 0 });
+    statsTable('sFuel', [{ label: 'Level', unit: 'L', d: 0, ...(HD.stats.fuel || {}) }]);
+  } else {
+    const K = 0.278, tt = HD.stats.total || {};      // litres per hour = total kW x 0.278
+    chart('cFuel', [{ label: 'Use', color: 'var(--fuel)', pts: P.map(p => ({ t: p.t, v: p.total == null ? null : p.total * K })) }], { min: 0, unit: 'L/h', d: 1, tick: 0 });
+    statsTable('sFuel', [{ label: 'Diesel use', unit: 'L/h', d: 1, min: tt.min == null ? null : tt.min * K, max: tt.max == null ? null : tt.max * K, avg: tt.avg == null ? null : tt.avg * K }]);
+  }
+  $('rangelbl').textContent = fdt(HD.from) + '  to  ' + fdt(HD.to) + (HD.since && HD.since > HD.from ? '   (history starts ' + fdt(HD.since) + ')' : '');
+}
+// Trends are hidden for now (the #trends block); to bring them back: show it and run  rangeBar(); loadHist(); setInterval(() => { if (!R.end) loadHist(); }, 30000);
+
+function setStatus(c, t) { $('status').className = 'status ' + c; $('statustext').textContent = t; }
+// outside temperature at Ain Ebel (free Open-Meteo service, no key), refreshed every 10 minutes
+async function loadTemp() {
+  try {
+    const r = await fetch('about:blank');
+    const t = (await r.json()).current.temperature_2m;
+    if (typeof t === 'number') $('outtemp').textContent = t.toFixed(1) + ' °C';
+  } catch (e) {}
+}
+loadTemp(); setInterval(loadTemp, 600000);
+refresh(); setInterval(refresh, 5000);
+</script>
+</body>
+</html>
