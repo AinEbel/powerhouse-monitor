@@ -98,8 +98,8 @@ async function getToken() {
 const num = v => {
   if (typeof v === 'boolean') return v ? 1 : 0;
   const t = String(v).trim().toLowerCase();
-  if (t === 'true' || t === 'on') return 1;
-  if (t === 'false' || t === 'off') return 0;
+  if (t === 'true' || t === 'on' || t === 'running' || t === 'onload' || t === 'closed') return 1;
+  if (t === 'false' || t === 'off' || t === 'stop' || t === 'stopped' || t === 'open') return 0;
   return Number(t);
 };
 
@@ -328,6 +328,51 @@ async function poll() {
   polling = false;
 }
 poll(); setInterval(poll, Math.max(8, cfg.pollSeconds) * 1000);
+// ---------- AL MAHFARA (second FBox: read only, own state, never touches the Al Dhour counters) ----------
+const MH_BOX = E.MAHFARA_BOXNO || '300223051481';
+let mh = { conn: 'starting', updated: null, values: {}, error: null }, mhHist = [], mhBusy = false;
+const MH_READS = [
+  { group: 'PWR STATUS', pts: [['edl', 'EDL'], ['solar.status', 'SOLAR'], ['m1.status', 'GEN 1'], ['m2.status', 'GEN 2']] },
+  ...[['SOLAR METER', 'solar'], ['GEN1 METER', 'm1'], ['GEN2 METER', 'm2']].map(([group, id]) => ({ group, pts: [['v1', 'L1'], ['v2', 'L2'], ['v3', 'L3'], ['freq', 'HZ'], ['i1', 'A1'], ['i2', 'A2'], ['i3', 'A3'], ['kw', 'KW']].map(([k, n]) => [id + '.' + k, n]) })),
+  { group: 'TIME RUNNING', pts: [['m1.hrs', 'GEN1 HRS'], ['m1.mn', 'GEN1 MN'], ['m2.hrs', 'GEN2 HRS'], ['m2.mn', 'GEN2 MN']] },
+  { group: 'FUEL LEVEL', pts: [['fuel_l', 'Fuel Level']] }
+];
+function mhScale(key, x) {                       // the cloud may send 1 decimal place as a whole number (2304 = 230.4); undo it only when the value is clearly out of range
+  const k = key.split('.').pop();
+  if (/^v[123]$/.test(k) && x > 1000) return x / 10;
+  if (k === 'freq' && x > 100) return x / 10;
+  return x;
+}
+async function mhPoll() {
+  if (cfg.mode !== 'fbox' || polling || mhBusy) return;
+  polling = true; mhBusy = true;
+  try {
+    const t = await getToken(), url = cfg.fbox.host.replace(/\/$/, '') + '/api/v2/dmon/value/get?boxNo=' + encodeURIComponent(MH_BOX);
+    const values = {}; let conn = 'offline', firstErr = null;
+    for (let n = 0; n < MH_READS.length; n++) {
+      if (n) await sleep(1200);
+      const g = MH_READS[n];
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ names: g.pts.map(p => p[1]), groupnames: g.pts.map(() => g.group), timeOut: null }) });
+      if (r.status === 429) throw new Error('FBox rate limit hit');
+      if (r.status === 401) { tok = null; throw new Error('FBox token rejected, will retry'); }
+      if (!r.ok) { firstErr = firstErr || 'AL MAHFARA read failed for "' + g.group + '" (' + r.status + ')'; continue; }
+      const rows = await r.json();
+      if (rows[0] && rows[0].connState === 1) conn = 'online';
+      for (const [key, name] of g.pts) { const row = rows.find(x => x.name === name); if (row && row.status === 0 && row.value !== null && row.value !== '') { const x = num(row.value); if (!isNaN(x)) values[key] = mhScale(key, x); } }
+    }
+    if (!Object.keys(values).length && firstErr) throw new Error(firstErr);
+    ['m1', 'm2'].forEach(id => { if (values[id + '.hrs'] != null) values[id + '.hours'] = values[id + '.hrs'] + (values[id + '.mn'] || 0) / 60; });
+    mh = { conn, updated: Date.now(), values, error: null };
+    const last = mhHist[mhHist.length - 1];
+    if (!last || Date.now() - last.t >= 60000) {
+      const pt = { t: Date.now(), fuel: values.fuel_l ?? null, m1: values['m1.kw'] ?? null, m2: values['m2.kw'] ?? null };
+      pt.total = +((pt.m1 || 0) + (pt.m2 || 0)).toFixed(2);
+      mhHist.push(pt); mhHist = mhHist.filter(h => Date.now() - h.t < DAY);
+    }
+  } catch (e) { mh.error = e.message; mh.conn = 'error'; console.error(new Date().toISOString(), 'mahfara', e.message); }
+  polling = false; mhBusy = false;
+}
+setTimeout(() => { mhPoll(); setInterval(mhPoll, 20000); }, 15000);
 
 // ---------- Web server ----------
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
@@ -446,6 +491,11 @@ http.createServer((req, res) => {
       } catch (e) { res.writeHead(400); res.end('Bad data'); }
     });
     return;
+  }
+  if (url === '/api/mahfara/status') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    const ok = cfg.mode === 'fbox';
+    return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, now: Date.now() }));
   }
   if (url === '/api/status') {
     const vid = (new URL(req.url, 'http://x').searchParams.get('v') || '');
