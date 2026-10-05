@@ -230,6 +230,10 @@ function bparts(t) { const p = {}; for (const x of BZ.formatToParts(new Date(t))
 const MON_FILE = path.join(__dirname, 'month.json');
 let mon = { daily: {}, fuel: {} }, monSaved = 0;
 try { const j = JSON.parse(fs.readFileSync(MON_FILE, 'utf8')); if (j && j.daily) mon = j; } catch (_) {}
+// Solar production, running total: kW of the solar added up over time. NEVER reset (not daily, not monthly), it only keeps adding.
+const SOL_FILE = path.join(__dirname, 'solar_total.json');
+let sol = { kwh: 0, since: null }, solLast = null, solSaved = 0;
+try { const j = JSON.parse(fs.readFileSync(SOL_FILE, 'utf8')); if (j && isFinite(j.kwh)) sol = { kwh: +j.kwh, since: j.since || null }; } catch (_) {}
 mon.fuel = mon.fuel || {};                       // litres of fuel used per day, for the monthly consumption
 function periodStart(day) { let [y, m, d] = day.split('-').map(Number); if (d < 5) { m--; if (m < 1) { m = 12; y--; } } return y + '-' + String(m).padStart(2, '0') + '-05'; }
 function monthTotal() {
@@ -259,7 +263,11 @@ function solarKw(v) {
 }
 function trackToday(v) {
   const L = v.fuel_l, c = v.fuel_counter, now = Date.now();
-  const kwNow = gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0) + solarKw(v);     // energy produced: kW added up over time (generators + solar)
+  const skw = solarKw(v), kwNow = gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0) + skw;     // energy produced: kW added up over time (generators + solar)
+  { if (!sol.since) sol.since = now;
+    if (solLast && now - solLast.t < 120e3) sol.kwh += (skw + solLast.kw) / 2 * (now - solLast.t) / 3600e3;
+    solLast = { t: now, kw: skw };
+    if (now - solSaved > 60e3) { solSaved = now; fs.writeFile(SOL_FILE, JSON.stringify(sol), () => {}); } }
   { const dk = bparts(now).day;                          // kWh produced is kept for every day, so any day range can be added up
     if (eLast && now - eLast.t < 120e3) mon.daily[dk] = (mon.daily[dk] || 0) + (kwNow + eLast.kw) / 2 * (now - eLast.t) / 3600e3;
     if (now - monSaved > 60e3) { monSaved = now; const old = Object.keys(mon.daily).sort().slice(0, -120); old.forEach(k => delete mon.daily[k]); Object.keys(mon.fuel).sort().slice(0, -120).forEach(k => delete mon.fuel[k]); fs.writeFile(MON_FILE, JSON.stringify(mon), () => {}); } }
@@ -502,7 +510,7 @@ http.createServer((req, res) => {
   }
   // Backup / restore of the counters (kWh today, monthly kWh, fuel used today), so a new version of the page can be put online without losing them.
   // Restore is accepted only in the first 15 minutes after a start, and only keeps the larger value of every day, so it can never lower a count.
-  if (url === '/api/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons, mon })); }
+  if (url === '/api/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons, mon, sol })); }
   if (url === '/api/restore' && req.method === 'POST') {
     let body = ''; req.on('data', d => { body += d; if (body.length > 5e5) req.destroy(); });
     req.on('end', () => {
@@ -511,6 +519,7 @@ http.createServer((req, res) => {
         if (process.uptime() > 900) { res.writeHead(403, H); return res.end(JSON.stringify({ error: 'only right after a start' })); }
         const j = JSON.parse(body), out = {};
         if (j.mon && j.mon.daily) { for (const [k, v] of Object.entries(j.mon.daily)) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mon.daily[k] = Math.max(mon.daily[k] || 0, +v); out.days = Object.keys(mon.daily).length; for (const [k, v] of Object.entries((j.mon && j.mon.fuel) || {})) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mon.fuel[k] = Math.max(mon.fuel[k] || 0, +v); fs.writeFile(MON_FILE, JSON.stringify(mon), () => {}); }
+        if (j.sol && isFinite(j.sol.kwh) && j.sol.kwh >= 0) { sol.kwh = Math.max(sol.kwh, +j.sol.kwh); if (j.sol.since && (!sol.since || j.sol.since < sol.since)) sol.since = +j.sol.since; fs.writeFile(SOL_FILE, JSON.stringify(sol), () => {}); out.solar = Math.round(sol.kwh); }
         const c = j.cons;
         if (c && c.day && c.day === cons.day) {                                      // same day: keep the bigger counts, and the earlier start
           cons.total = Math.max(cons.total, +c.total || 0); cons.refuelled = Math.max(cons.refuelled, +c.refuelled || 0); cons.kwh = Math.max(cons.kwh || 0, +c.kwh || 0);
@@ -583,7 +592,7 @@ http.createServer((req, res) => {
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })),
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
-      online: onlineCount(), fuelToday: fuelToday(), alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
+      online: onlineCount(), solarTotal: { kwh: +sol.kwh.toFixed(2), since: sol.since, kw: +solarKw(state.values || {}).toFixed(1) }, fuelToday: fuelToday(), alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
     }));
   }
   const file = path.join(__dirname, 'public', url === '/' ? 'index.html' : url);
