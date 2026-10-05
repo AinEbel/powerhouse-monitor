@@ -389,12 +389,12 @@ const STUB = () => ({
   generators: [{ id: 'm1', label: 'GENERATOR 1', ratedKva: null }, { id: 'm2', label: 'GENERATOR 2', ratedKva: null }],
   decimals: { v1: 0, v2: 0, v3: 0, i1: 1, i2: 1, i3: 1, freq: 1, kw: 1, hours: 0, min: 0, sec: 0, fuel_l: 0, fuel_counter: 0, edl: 0 },
   demo: true, now: Date.now(), pollSeconds: 10, online: 0,
-  fuelToday: { day: new Date().toISOString().slice(0, 10), since: Date.now(), total: 0, refuelled: 0, curHour: new Date().getHours(), kwh: 0, month: { month: '', final: false, kwh: 0, litres: 0, days: 0 }, hours: [], rate: null, prev: null },
+  fuelToday: { day: '', since: Date.now(), total: 0, refuelled: 0, curHour: new Date().getHours(), kwh: 0, month: { month: new Date().toISOString().slice(0, 7), final: false, kwh: 0, litres: 0, days: 0 }, hours: [], rate: null, prev: null },
   alarm: { litres: 0, push: false, active: false }, conn: 'stale', error: null, updated: null, values: {}, history: []
 });
 async function refresh() {
   let s;
-  try { s = STUB(); }
+  try { s = STUB(); try { const r = await fetch('/api/mahfara/status?x=' + Date.now(), { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.ok) { s.values = j.values || {}; s.conn = j.conn; s.error = j.error; s.updated = j.updated; s.now = j.now; s.history = j.history || []; s.demo = false; s.pollSeconds = 20; s.site.details.Status = 'Connected'; } } } catch (_) {} }
   catch (e) { setStatus('error', 'Cannot reach the monitor server'); return; }
   if (!built) build(s);
   document.title = s.site.name + ' monitor'; $('name').textContent = s.site.name;
@@ -448,9 +448,9 @@ async function refresh() {
   s.generators.forEach(g => {
     const k = n => v[g.id + '.' + n], kw = k('kw'), st = k('status');
     const on = st != null ? st === 1 : kw != null && kw > 1;
-    if (on) { running++; const gi = s.generators.indexOf(g); if (GX[gi] != null) act.push(GX[gi]); } if (kw != null) tot += kw;
+    if (on) { running++; const gi = s.generators.indexOf(g); if (GX[gi] != null && (kw == null || kw > 1)) act.push(GX[gi]); } if (kw != null) tot += kw;
     $(g.id + '-svg').setAttribute('class', 'gset' + (on ? ' on' : '')); $(g.id + '-photo').closest('.panel').classList.toggle('live', on);
-    wire('pfl-' + g.id, on); $('pfb-' + g.id).setAttribute('class', 'node' + (on ? ' on' : ''));
+    wire('pfl-' + g.id, on && (kw == null || kw > 1)); $('pfb-' + g.id).setAttribute('class', 'node' + (on ? ' on' : ''));
     $('pf-' + g.id).textContent = !on ? 'STOPPED' : fmt(kw, 0) + ' kW';
     $(g.id + '-kw').textContent = fmt(kw, dp('kw'));
     $(g.id + '-tag').textContent = st == null && kw == null ? 'No data' : on ? 'Running' : 'Stopped';
