@@ -364,6 +364,7 @@ async function mhPoll() {
     if (!Object.keys(values).length && firstErr) throw new Error(firstErr);
     ['m1', 'm2'].forEach(id => { if (values[id + '.hrs'] != null) values[id + '.hours'] = values[id + '.hrs'] + (values[id + '.mn'] || 0) / 60; });
     mh = { conn, updated: Date.now(), values, error: null };
+    mhTrack(values);
     const last = mhHist[mhHist.length - 1];
     if (!last || Date.now() - last.t >= 60000) {
       const pt = { t: Date.now(), fuel: values.fuel_l ?? null, m1: values['m1.kw'] ?? null, m2: values['m2.kw'] ?? null };
@@ -372,6 +373,50 @@ async function mhPoll() {
     }
   } catch (e) { mh.error = e.message; mh.conn = 'error'; console.error(new Date().toISOString(), 'mahfara', e.message); }
   polling = false; mhBusy = false;
+}
+// ---- AL MAHFARA counters: same rules as Al Dhour (daily kWh and fuel reset at 00:00 Beirut, monthly totals kept), own files ----
+const MH_CONS_FILE = path.join(__dirname, 'mh_consumption.json'), MH_MON_FILE = path.join(__dirname, 'mh_month.json');
+let mcons = { day: null, since: null, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null }, mmon = { daily: {}, fuel: {} }, mcLast = null, mcKw = 0, mcKwN = 0, mcRecent = [], meLast = null, mmSaved = 0;
+try { const j = JSON.parse(fs.readFileSync(MH_CONS_FILE, 'utf8')); if (j && j.day) mcons = j; } catch (_) {}
+try { const j = JSON.parse(fs.readFileSync(MH_MON_FILE, 'utf8')); if (j && j.daily) mmon = j; } catch (_) {}
+mmon.fuel = mmon.fuel || {};
+function mhMonthTotal() {
+  let [y, m, d] = bparts(Date.now()).day.split('-').map(Number);
+  const sum = mk => { let kwh = 0, days = 0, litres = 0; for (const [k, v] of Object.entries(mmon.daily)) if (k.startsWith(mk)) { kwh += v; days++; } for (const [k, v] of Object.entries(mmon.fuel)) if (k.startsWith(mk)) litres += v; return { kwh: Math.round(kwh), litres: Math.round(litres), days }; };
+  const cur = y + '-' + String(m).padStart(2, '0'), pm = m < 2 ? 12 : m - 1, prev = (m < 2 ? y - 1 : y) + '-' + String(pm).padStart(2, '0');
+  if (d < 5) { const p = sum(prev); if (p.days) return { month: prev, final: true, ...p }; }
+  return { month: cur, final: false, ...sum(cur) };
+}
+function mhTrack(v) {
+  const L = v.fuel_l, now = Date.now(), gk = (v['m1.kw'] || 0) + (v['m2.kw'] || 0);
+  const kwNow = gk + Math.max(0, v['solar.kw'] || 0);          // energy produced = generators + solar, added up over time
+  { const dk = bparts(now).day;
+    if (meLast && now - meLast.t < 120e3) mmon.daily[dk] = (mmon.daily[dk] || 0) + (kwNow + meLast.kw) / 2 * (now - meLast.t) / 3600e3;
+    if (now - mmSaved > 60e3) { mmSaved = now; Object.keys(mmon.daily).sort().slice(0, -120).forEach(k => delete mmon.daily[k]); Object.keys(mmon.fuel).sort().slice(0, -120).forEach(k => delete mmon.fuel[k]); fs.writeFile(MH_MON_FILE, JSON.stringify(mmon), () => {}); } }
+  if (mcons.day && meLast && now - meLast.t < 120e3) { const e = (kwNow + meLast.kw) / 2 * (now - meLast.t) / 3600e3; mcons.kwh = (mcons.kwh || 0) + e; mcons.kwhH = mcons.kwhH || {}; const hr = bparts(now).hour; mcons.kwhH[hr] = (mcons.kwhH[hr] || 0) + e; }
+  meLast = { t: now, kw: kwNow };
+  if (L == null || !isFinite(L)) return;
+  mcKw += gk; mcKwN++;
+  const m = Math.floor(now / 60000), b = bparts(now);
+  if (!mcLast) { mcLast = { m, t: now, level: L }; if (!mcons.day) mcons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null }; return; }
+  if (m === mcLast.m) return;
+  if (b.day !== mcons.day) mcons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: { day: mcons.day, since: mcons.since, total: Math.round(mcons.total), refuelled: Math.round(mcons.refuelled), kwh: Math.round(mcons.kwh || 0) } };
+  const dt = (now - mcLast.t) / 3600e3, kwAvg = mcKwN ? mcKw / mcKwN : 0, rise = L - mcLast.level;
+  let used, added = 0;
+  if (rise > 20) { added = rise; used = kwAvg * LPKW_S * dt; }       // level jumped up: a refuel, the use of that minute is estimated from the load
+  else used = Math.max(0, -rise);
+  mmon.fuel[b.day] = (mmon.fuel[b.day] || 0) + used;
+  mcons.total += used; mcons.refuelled += added; mcons.hours[b.hour] = (mcons.hours[b.hour] || 0) + used;
+  mcRecent.push({ t: now, used }); mcRecent = mcRecent.filter(x => x.t > now - 600e3);
+  mcLast = { m, t: now, level: L }; mcKw = 0; mcKwN = 0;
+  fs.writeFile(MH_CONS_FILE, JSON.stringify(mcons), () => {});
+}
+function mhFuelToday() {
+  const now = Date.now(), cur = bparts(now), r = mcRecent.reduce((a, x) => a + x.used, 0), span = mcRecent.length ? Math.max(60e3, now - mcRecent[0].t + 60e3) : 0;
+  const kh = mcons.kwhH || {}, hs = [...new Set([...Object.keys(mcons.hours), ...Object.keys(kh)])].map(Number).sort((a, b) => a - b);
+  return { day: mcons.day, since: mcons.since, total: Math.round(mcons.total), refuelled: Math.round(mcons.refuelled), curHour: cur.hour, kwh: Math.round(mcons.kwh || 0), month: mhMonthTotal(),
+    hours: hs.map(h => ({ h, used: Math.round(mcons.hours[h] || 0), kwh: Math.round(kh[h] || 0) })),
+    rate: span ? +(r / (span / 3600e3)).toFixed(1) : null, prev: mcons.prev };
 }
 setTimeout(() => { mhPoll(); setInterval(mhPoll, 20000); }, 15000);
 
@@ -493,10 +538,33 @@ http.createServer((req, res) => {
     });
     return;
   }
+  if (url === '/api/mahfara/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons: mcons, mon: mmon })); }
+  if (url === '/api/mahfara/restore' && req.method === 'POST') {
+    let body = ''; req.on('data', d => { body += d; if (body.length > 5e5) req.destroy(); });
+    req.on('end', () => {
+      const H = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+      try {
+        if (process.uptime() > 900) { res.writeHead(403, H); return res.end(JSON.stringify({ error: 'only right after a start' })); }
+        const j = JSON.parse(body), out = {};
+        if (j.mon && j.mon.daily) { for (const [k, v] of Object.entries(j.mon.daily)) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mmon.daily[k] = Math.max(mmon.daily[k] || 0, +v); out.days = Object.keys(mmon.daily).length; for (const [k, v] of Object.entries(j.mon.fuel || {})) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mmon.fuel[k] = Math.max(mmon.fuel[k] || 0, +v); fs.writeFile(MH_MON_FILE, JSON.stringify(mmon), () => {}); }
+        const c = j.cons;
+        if (c && c.day && c.day === mcons.day) {
+          mcons.total = Math.max(mcons.total, +c.total || 0); mcons.refuelled = Math.max(mcons.refuelled, +c.refuelled || 0); mcons.kwh = Math.max(mcons.kwh || 0, +c.kwh || 0);
+          if (c.since && c.since < mcons.since) mcons.since = c.since;
+          for (const [h, v] of Object.entries(c.hours || {})) mcons.hours[h] = Math.max(mcons.hours[h] || 0, +v || 0);
+          mcons.kwhH = mcons.kwhH || {}; for (const [h, v] of Object.entries(c.kwhH || {})) mcons.kwhH[h] = Math.max(mcons.kwhH[h] || 0, +v || 0);
+          if (c.prev && !mcons.prev) mcons.prev = c.prev;
+          fs.writeFile(MH_CONS_FILE, JSON.stringify(mcons), () => {}); out.today = true;
+        }
+        res.writeHead(200, H); return res.end(JSON.stringify({ ok: true, ...out }));
+      } catch (e) { res.writeHead(400, H); return res.end(JSON.stringify({ error: 'bad data' })); }
+    });
+    return;
+  }
   if (url === '/api/mahfara/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     const ok = cfg.mode === 'fbox';
-    return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, now: Date.now() }));
+    return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), now: Date.now() }));
   }
   if (url === '/api/status') {
     const vid = (new URL(req.url, 'http://x').searchParams.get('v') || '');
