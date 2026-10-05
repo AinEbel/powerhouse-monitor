@@ -345,8 +345,11 @@ function mhScale(key, x) {                       // the cloud sends each float w
   return x;
 }
 async function mhPoll() {
-  if (cfg.mode !== 'fbox' || polling || mhBusy) return;
-  polling = true; mhBusy = true;
+  if (cfg.mode !== 'fbox' || mhBusy) return;
+  mhBusy = true;
+  for (let i = 0; polling && i < 60; i++) await sleep(500);     // wait for the Al Dhour read to finish: the FBox allows about 1 call per second
+  if (polling) { mhBusy = false; return; }
+  polling = true;
   try {
     const t = await getToken(), url = cfg.fbox.host.replace(/\/$/, '') + '/api/v2/dmon/value/get?boxNo=' + encodeURIComponent(MH_BOX);
     const values = {}; let conn = 'offline', firstErr = null;
