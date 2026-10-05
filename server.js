@@ -392,6 +392,10 @@ let mcons = { day: null, since: null, total: 0, refuelled: 0, hours: {}, kwh: 0,
 try { const j = JSON.parse(fs.readFileSync(MH_CONS_FILE, 'utf8')); if (j && j.day) mcons = j; } catch (_) {}
 try { const j = JSON.parse(fs.readFileSync(MH_MON_FILE, 'utf8')); if (j && j.daily) mmon = j; } catch (_) {}
 mmon.fuel = mmon.fuel || {};
+// AL MAHFARA solar production, running total of the real solar meter kW added up over time. NEVER reset (not daily, not monthly).
+const MH_SOL_FILE = path.join(__dirname, 'mh_solar_total.json');
+let msol = { kwh: 0, since: null }, msolLast = null, msolSaved = 0;
+try { const j = JSON.parse(fs.readFileSync(MH_SOL_FILE, 'utf8')); if (j && isFinite(j.kwh)) msol = { kwh: +j.kwh, since: j.since || null }; } catch (_) {}
 function mhMonthTotal() {
   let [y, m, d] = bparts(Date.now()).day.split('-').map(Number);
   const sum = mk => { let kwh = 0, days = 0, litres = 0; for (const [k, v] of Object.entries(mmon.daily)) if (k.startsWith(mk)) { kwh += v; days++; } for (const [k, v] of Object.entries(mmon.fuel)) if (k.startsWith(mk)) litres += v; return { kwh: Math.round(kwh), litres: Math.round(litres), days }; };
@@ -401,7 +405,11 @@ function mhMonthTotal() {
 }
 function mhTrack(v) {
   const L = v.fuel_l, now = Date.now(), gk = (v['m1.kw'] || 0) + (v['m2.kw'] || 0);
-  const kwNow = gk + Math.max(0, v['solar.kw'] || 0);          // energy produced = generators + solar, added up over time
+  const skw = Math.max(0, v['solar.kw'] || 0), kwNow = gk + skw;          // energy produced = generators + solar, added up over time
+  { if (!msol.since) msol.since = now;
+    if (msolLast && now - msolLast.t < 120e3) msol.kwh += (skw + msolLast.kw) / 2 * (now - msolLast.t) / 3600e3;
+    msolLast = { t: now, kw: skw };
+    if (now - msolSaved > 60e3) { msolSaved = now; fs.writeFile(MH_SOL_FILE, JSON.stringify(msol), () => {}); } }
   { const dk = bparts(now).day;
     if (meLast && now - meLast.t < 120e3) mmon.daily[dk] = (mmon.daily[dk] || 0) + (kwNow + meLast.kw) / 2 * (now - meLast.t) / 3600e3;
     if (now - mmSaved > 60e3) { mmSaved = now; Object.keys(mmon.daily).sort().slice(0, -120).forEach(k => delete mmon.daily[k]); Object.keys(mmon.fuel).sort().slice(0, -120).forEach(k => delete mmon.fuel[k]); fs.writeFile(MH_MON_FILE, JSON.stringify(mmon), () => {}); } }
@@ -554,7 +562,7 @@ http.createServer((req, res) => {
     });
     return;
   }
-  if (url === '/api/mahfara/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons: mcons, mon: mmon })); }
+  if (url === '/api/mahfara/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons: mcons, mon: mmon, sol: msol })); }
   if (url === '/api/mahfara/restore' && req.method === 'POST') {
     let body = ''; req.on('data', d => { body += d; if (body.length > 5e5) req.destroy(); });
     req.on('end', () => {
@@ -563,6 +571,7 @@ http.createServer((req, res) => {
         if (process.uptime() > 900) { res.writeHead(403, H); return res.end(JSON.stringify({ error: 'only right after a start' })); }
         const j = JSON.parse(body), out = {};
         if (j.mon && j.mon.daily) { for (const [k, v] of Object.entries(j.mon.daily)) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mmon.daily[k] = Math.max(mmon.daily[k] || 0, +v); out.days = Object.keys(mmon.daily).length; for (const [k, v] of Object.entries(j.mon.fuel || {})) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mmon.fuel[k] = Math.max(mmon.fuel[k] || 0, +v); fs.writeFile(MH_MON_FILE, JSON.stringify(mmon), () => {}); }
+        if (j.sol && isFinite(j.sol.kwh) && j.sol.kwh >= 0) { msol.kwh = Math.max(msol.kwh, +j.sol.kwh); if (j.sol.since && (!msol.since || j.sol.since < msol.since)) msol.since = +j.sol.since; fs.writeFile(MH_SOL_FILE, JSON.stringify(msol), () => {}); out.solar = Math.round(msol.kwh); }
         const c = j.cons;
         if (c && c.day && c.day === mcons.day) {
           mcons.total = Math.max(mcons.total, +c.total || 0); mcons.refuelled = Math.max(mcons.refuelled, +c.refuelled || 0); mcons.kwh = Math.max(mcons.kwh || 0, +c.kwh || 0);
@@ -580,7 +589,7 @@ http.createServer((req, res) => {
   if (url === '/api/mahfara/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     const ok = cfg.mode === 'fbox';
-    return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), now: Date.now() }));
+    return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), solarTotal: { kwh: +msol.kwh.toFixed(2), since: msol.since, kw: +Math.max(0, mh.values['solar.kw'] || 0).toFixed(1) }, now: Date.now() }));
   }
   if (url === '/api/status') {
     const vid = (new URL(req.url, 'http://x').searchParams.get('v') || '');
