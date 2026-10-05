@@ -337,10 +337,11 @@ const MH_READS = [
   { group: 'TIME RUNNING', pts: [['m1.hrs', 'GEN1 HRS'], ['m1.mn', 'GEN1 MN'], ['m2.hrs', 'GEN2 HRS'], ['m2.mn', 'GEN2 MN']] },
   { group: 'FUEL LEVEL', pts: [['fuel_l', 'Fuel Level']] }
 ];
-function mhScale(key, x) {                       // the cloud may send 1 decimal place as a whole number (2304 = 230.4); undo it only when the value is clearly out of range
+function mhScale(key, x) {                       // the cloud sends each float with its decimals baked in: volts and Hz x100, amps x1e6, kW x1e5 (checked against the Manager page)
   const k = key.split('.').pop();
-  if (/^v[123]$/.test(k) && x > 1000) return x / 10;
-  if (k === 'freq' && x > 100) return x / 10;
+  if (/^v[123]$/.test(k) || k === 'freq') return x / 100;
+  if (/^i[123]$/.test(k)) return x / 1e6;
+  if (k === 'kw') return x / 1e5;
   return x;
 }
 async function mhPoll() {
