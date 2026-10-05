@@ -394,7 +394,7 @@ const STUB = () => ({
 });
 async function refresh() {
   let s;
-  try { s = STUB(); try { const r = await fetch('/api/mahfara/status?x=' + Date.now(), { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.ok) { s.values = j.values || {}; s.conn = j.conn; s.error = j.error; s.updated = j.updated; s.now = j.now; s.history = j.history || []; s.demo = false; s.pollSeconds = 20; s.site.details.Status = 'Connected'; } } } catch (_) {} }
+  try { s = STUB(); try { const r = await fetch('/api/mahfara/status?x=' + Date.now(), { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.ok) { s.values = j.values || {}; s.conn = j.conn; s.error = j.error; s.updated = j.updated; s.now = j.now; s.history = j.history || []; if (j.fuelToday) s.fuelToday = j.fuelToday; s.demo = false; s.pollSeconds = 20; s.site.details.Status = 'Connected'; } } } catch (_) {} }
   catch (e) { setStatus('error', 'Cannot reach the monitor server'); return; }
   if (!built) build(s);
   document.title = s.site.name + ' monitor'; $('name').textContent = s.site.name;
