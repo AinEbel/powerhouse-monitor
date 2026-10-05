@@ -174,7 +174,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
 .warn3 b{animation:warn3t 3s linear infinite;animation-delay:inherit}
 @keyframes warn3{0%,90%,100%{box-shadow:inset 0 0 12px #000,0 1px 0 #3d484f;border-color:#040506}94%{box-shadow:inset 0 0 22px rgba(255,59,48,.75),0 0 16px 5px rgba(255,59,48,.9);border-color:#ff3b30}}
 @keyframes warn3t{0%,90%,100%{text-shadow:none}94%{text-shadow:0 0 14px #ff3b30,0 0 4px #ff3b30}}
-.sw{stroke:#8d9aa3;stroke-width:3;stroke-linecap:round;transform:rotate(30deg);transition:transform .45s}
+.sw{stroke:#8d9aa3;stroke-width:3;stroke-linecap:butt;transform:rotate(30deg);transition:transform .45s}
 .sw.on{stroke:var(--yellow);transform:rotate(0deg)}
 .swc{fill:#12171a;stroke:#8d9aa3;stroke-width:2}
 </style>
@@ -334,11 +334,12 @@ function build(s) {
   if (HD) drawTrends();
   // single-line power flow: mains -> busbar -> load, generators feed the busbar from below
   const n = s.generators.length, gx = i => 190 + (i + 1) * 420 / (n + 1); GX = s.generators.map((g, i) => gx(i)); LX = (190 + gx(0)) / 2; RE = gx(n - 1);
-  const swg = (id, x) => `<path id="pfl-${id}" class="wire" d="M${x} 152V131.2"/><path id="pfl-${id}-u" class="wire" d="M${x} 68.8V55"/><circle class="swc" cx="${x}" cy="128" r="3.4"/><circle class="swc" cx="${x}" cy="72" r="3.4"/><circle class="swc" cx="${x + 28}" cy="79.5" r="3.4"/><line id="sw-${id}" class="sw" x1="${x}" y1="128" x2="${x}" y2="73" style="transform-origin:${x}px 128px"/><circle id="lb-${id}" class="lamp bus" cx="${x - 15}" cy="72" r="4.6"/><circle id="ls-${id}" class="lamp" cx="${x - 15}" cy="128" r="4.6"/>`;
+  // normally-open switch: pivot P (x,128) at the source side, fixed contact U (x,72) at the busbar side, 20.6 units of cable above and below, blade ends square and touches the contact when closed
+  const swg = (id, x) => `<path id="pfl-${id}" class="wire" d="M${x} 152V131.4"/><path id="pfl-${id}-u" class="wire" d="M${x} 68.6V48"/><line id="sw-${id}" class="sw" x1="${x}" y1="128" x2="${x}" y2="75.4" style="transform-origin:${x}px 128px"/><circle class="swc" cx="${x}" cy="128" r="3.4"/><circle class="swc" cx="${x}" cy="72" r="3.4"/><circle id="lb-${id}" class="lamp bus" cx="${x - 15}" cy="72" r="4.6"/><circle id="ls-${id}" class="lamp" cx="${x - 15}" cy="128" r="4.6"/>`;
   $('flow').innerHTML = `<g transform="translate(0 80)">
-    <text class="k" x="${RE + 14}" y="40" text-anchor="end" style="font-size:11px">COMMON BUSBAR</text>
-    <rect class="bus" x="34" y="50" width="${RE + 14 - 34}" height="10"/><path id="pfl-busL" class="wire" d="M50 55H${LX}"/><path id="pfl-busR" class="wire" d="M${RE} 55H${LX}"/>
-    <path id="pfl-load" class="wire" d="M${LX} 50V-8"/>
+    <text class="k" x="${RE + 16}" y="28" text-anchor="end" style="font-size:11px">COMMON BUSBAR</text>
+    <rect class="bus" x="34" y="38" width="${RE + 16 - 34}" height="10"/><path id="pfl-busL" class="wire" d="M50 43H${LX}"/><path id="pfl-busR" class="wire" d="M${RE} 43H${LX}"/>
+    <path id="pfl-load" class="wire" d="M${LX} 38V-8"/>
     <g transform="translate(${LX - 70} -74)"><rect class="node" x="0" y="0" width="140" height="66" rx="3"/>
     <path d="M22 10 14 34h9l-3 22 15-28h-9l4-18z" fill="#3aa0ff"/>
     <text class="k" x="44" y="26">AIN EBEL</text><text class="v" id="pf-load" x="44" y="50">--</text></g>
@@ -490,7 +491,7 @@ async function refresh() {
   { const busKw = tot + (solOn ? sol : 0), genQ = totKva > tot ? Math.sqrt(totKva * totKva - tot * tot) : 0, busKva = Math.sqrt(busKw * busKw + genQ * genQ);
     $('totkw').textContent = fmt(busKw, 1); $('totkva').textContent = running || solOn ? fmt(busKva, 1) : '--'; $('totpf').textContent = busKva > 1 ? fmt(Math.min(1, busKw / busKva), 2) : '--'; }
   const aL = act.filter(x => x < LX), aR = act.filter(x => x > LX), mono = running || solOn ? '' : ' mains';
-  $('pfl-busL').setAttribute('d', 'M' + (aL.length ? Math.min(...aL) : LX) + ' 55H' + LX); $('pfl-busR').setAttribute('d', 'M' + (aR.length ? Math.max(...aR) : LX) + ' 55H' + LX);
+  $('pfl-busL').setAttribute('d', 'M' + (aL.length ? Math.min(...aL) : LX) + ' 43H' + LX); $('pfl-busR').setAttribute('d', 'M' + (aR.length ? Math.max(...aR) : LX) + ' 43H' + LX);
   wire('pfl-busL', aL.length > 0, solOn && !edlOn ? ' solar' : mono); wire('pfl-busR', aR.length > 0, mono); wire('pfl-load', act.length > 0, solOn && (running || edlOn) ? ' mix' : solOn ? ' solar' : mono); $('pf-load').textContent = fmt(tot + (solOn ? sol : 0), 1) + ' kW';
   const sd = solOn ? (16 / (8 + 72 * Math.min(sol, 50) / 50)).toFixed(3) + 's' : ''; ['pfl-solar', 'pfl-solar-u', 'pfl-busL', 'pfl-load'].forEach(id => { const e = $(id); if (e) e.style.animationDuration = e.classList.contains('solar') ? sd : ''; });
 
