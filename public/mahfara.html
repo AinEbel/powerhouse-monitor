@@ -7,13 +7,13 @@
 <title>AL MAHFARA Power house monitor</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=Share+Tech+Mono&family=Black+Ops+One&display=swap">
 <style>
-:root{--bg:#121518;--p1:#252c31;--p2:#1a2024;--ink:#e8edf0;--steel:#8d9aa3;--line:#38424a;--yellow:#00e5ff;--fuel:#00e5ff;--low:#ff4d3d;--ok:#38d27a;--warn:#ffb020;--g1:#00e5ff;--g2:#7df3ff;--lcd:#090c0e;
+:root{--bg:#121518;--p1:#252c31;--p2:#1a2024;--ink:#e8edf0;--steel:#8d9aa3;--line:#38424a;--yellow:#ff7a1a;--fuel:#ff7a1a;--low:#ff4d3d;--ok:#38d27a;--warn:#ffb020;--g1:#ff7a1a;--g2:#ffb070;--lcd:#090c0e;
   font-family:"Barlow",system-ui,sans-serif;color:var(--ink);color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;padding:14px 14px 30px;min-height:100vh;background-color:var(--bg);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.02) 0 2px,transparent 2px 9px)}
 .wrap{max-width:1120px;margin:0 auto}
 h1,h2,.tag,th,.badge,.mono{font-family:"Barlow Condensed","Arial Narrow",sans-serif}
-.hazard{height:12px;border-radius:2px;margin-bottom:12px;background:repeating-linear-gradient(-45deg,#00e5ff 0 14px,#15181b 14px 28px)}
+.hazard{height:12px;border-radius:2px;margin-bottom:12px;background:repeating-linear-gradient(-45deg,#ff7a1a 0 14px,#15181b 14px 28px)}
 header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .brand{display:flex;align-items:center;gap:14px}
 .brand svg{width:54px;height:54px;flex:none}
@@ -24,7 +24,7 @@ h1{font-size:34px;font-weight:700;margin:0;text-transform:uppercase;letter-spaci
 .online .dot{background:var(--ok);box-shadow:0 0 9px var(--ok)}
 .offline .dot,.error .dot{background:var(--low);box-shadow:0 0 9px var(--low)}
 .stale .dot{background:var(--warn);box-shadow:0 0 9px var(--warn)}
-.demo{background:repeating-linear-gradient(-45deg,#00e5ff 0 16px,#00b8d4 16px 32px);color:#06182b;font-weight:500;padding:9px 14px;border-radius:3px;margin-bottom:12px;font-size:15px;display:none}
+.demo{background:repeating-linear-gradient(-45deg,#ff7a1a 0 16px,#e65c00 16px 32px);color:#06182b;font-weight:500;padding:9px 14px;border-radius:3px;margin-bottom:12px;font-size:15px;display:none}
 .alerts{display:grid;gap:8px;margin-bottom:14px}
 .alert{border-left:6px solid var(--warn);background:#1b2126;border-top:1px solid #333d44;border-bottom:1px solid #333d44;padding:9px 14px;font-size:16px}
 .alert.bad{border-left-color:var(--low);background:#2a1a19}
@@ -72,7 +72,7 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .alarmset{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid #333d44;color:var(--steel);font-size:16px;flex-wrap:wrap}
 .alarmset label{font-family:"Barlow Condensed";text-transform:uppercase;letter-spacing:.08em;font-size:17px}
 .alarmset input{width:110px;background:#0c1012;border:1px solid #4a555c;border-radius:3px;color:var(--fuel);font-family:"Share Tech Mono",monospace;font-size:24px;padding:4px 8px;text-align:right}
-.alarmset input:focus{outline:2px solid #00e5ff;outline-offset:1px}
+.alarmset input:focus{outline:2px solid #ff7a1a;outline-offset:1px}
 .lowalarm{margin:0 0 12px;padding:10px 14px;border:2px solid var(--low);border-left-width:8px;background:#2a1a19;color:#ffd9d4;font-size:17px;animation:alarmblink 1s steps(2,start) infinite}
 .alarmnote{margin-top:8px;color:var(--steel);font-size:15px}.alarmnote b{color:var(--ok);font-family:"Barlow Condensed";letter-spacing:.08em}.alarmnote button{margin-left:10px;background:#12171a;border:1px solid #4a555c;border-radius:3px;color:var(--ink);font-size:14px;padding:3px 10px;cursor:pointer}.alarmnote button:disabled{opacity:.6;cursor:default}
 .lowalarm[hidden]{display:none}.lowalarm b{font-family:"Barlow Condensed";text-transform:uppercase;letter-spacing:.08em;font-size:20px;color:#ff6a58;margin-right:8px}
@@ -192,7 +192,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
   <div class="hazard"></div>
   <header>
     <div class="brand">
-      <svg viewBox="0 0 54 54" aria-hidden="true"><rect x="1" y="1" width="52" height="52" rx="4" fill="#0c0f11" stroke="#47525a" stroke-width="2"/><path d="M8 44V25l9 6v-6l9 6v-6l9 6V11h7v33z" fill="#00e5ff"/><path d="M27 33l-5 8h4l-1 5 6-8h-4l1-5z" fill="#15181b"/><rect x="39" y="6" width="7" height="6" fill="#8d9aa3"/></svg>
+      <svg viewBox="0 0 54 54" aria-hidden="true"><rect x="1" y="1" width="52" height="52" rx="4" fill="#0c0f11" stroke="#47525a" stroke-width="2"/><path d="M8 44V25l9 6v-6l9 6v-6l9 6V11h7v33z" fill="#ff7a1a"/><path d="M27 33l-5 8h4l-1 5 6-8h-4l1-5z" fill="#15181b"/><rect x="39" y="6" width="7" height="6" fill="#8d9aa3"/></svg>
       <div><h1 id="name">AL MAHFARA POWER HOUSE</h1><div class="tagline">Generator plant monitor</div></div>
       <a class="sitebtn" id="sitebtn" href="/">AL DHOUR</a>
     </div>
@@ -214,13 +214,13 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
       </div>
       <div class="brandmark" aria-label="Ain Ebel Power Generators"><div class="clk" id="clk"><div id="clkT">--:--:--</div><div id="clkD">&nbsp;</div></div><svg viewBox="0 84 360 134" role="img">
         <defs>
-          <linearGradient id="brg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b2f5ff"/><stop offset="1" stop-color="#00b8d4"/></linearGradient>
+          <linearGradient id="brg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd1a8"/><stop offset="1" stop-color="#e65c00"/></linearGradient>
           <filter id="brglow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         </defs>
         <text x="180" y="142" text-anchor="middle" font-family="'Barlow Condensed',sans-serif" font-weight="700" font-size="58" letter-spacing="7" fill="url(#brg)" filter="url(#brglow)">AIN EBEL</text>
         <g stroke="#6d7a83" stroke-width="2" stroke-linecap="round"><path d="M34 164H152M208 164H326"/></g>
-        <path d="M180 156 188 164 180 172 172 164Z" fill="#00e5ff"/>
-        <circle cx="160" cy="164" r="2.6" fill="#00e5ff"/><circle cx="200" cy="164" r="2.6" fill="#00e5ff"/>
+        <path d="M180 156 188 164 180 172 172 164Z" fill="#ff7a1a"/>
+        <circle cx="160" cy="164" r="2.6" fill="#ff7a1a"/><circle cx="200" cy="164" r="2.6" fill="#ff7a1a"/>
         <text x="180" y="204" text-anchor="middle" font-family="'Barlow Condensed',sans-serif" font-weight="600" font-size="22" letter-spacing="7" fill="#9fb0ba">POWER GENERATORS</text>
       </svg></div>
     </section>
@@ -295,14 +295,14 @@ const gensetSvg = g => `
   <g class="eng">
     <rect x="18" y="56" width="72" height="50" rx="7" fill="#3f6f8f" stroke="#28485d" stroke-width="2"/>
     <path d="M32 58v46M44 58v46M56 58v46M68 58v46M80 58v46" stroke="#2f5670" stroke-width="2"/>
-    <path d="M52 68l-9 14h7l-2 11 12-16h-7l3-9z" fill="#00e5ff" transform="translate(10 -2)"/>
+    <path d="M52 68l-9 14h7l-2 11 12-16h-7l3-9z" fill="#ff7a1a" transform="translate(10 -2)"/>
     <rect x="90" y="66" width="14" height="30" fill="#59646c"/>
-    <rect x="102" y="46" width="112" height="60" rx="4" fill="#00e5ff" stroke="#0097a7" stroke-width="2"/>
-    <rect x="112" y="34" width="92" height="14" rx="2" fill="#00b8d4" stroke="#00798a"/>
-    <path d="M124 34v14M138 34v14M152 34v14M166 34v14M180 34v14M194 34v14" stroke="#00798a" stroke-width="1.5"/>
+    <rect x="102" y="46" width="112" height="60" rx="4" fill="#ff7a1a" stroke="#b34700" stroke-width="2"/>
+    <rect x="112" y="34" width="92" height="14" rx="2" fill="#e65c00" stroke="#8f3a00"/>
+    <path d="M124 34v14M138 34v14M152 34v14M166 34v14M180 34v14M194 34v14" stroke="#8f3a00" stroke-width="1.5"/>
     <rect x="112" y="60" width="92" height="26" rx="2" fill="#16191b"/>
-    <text x="158" y="80" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="21" letter-spacing="2" fill="#00e5ff">${g.label.replace(/^GENERATOR/, 'GEN')}</text>
-    <circle cx="122" cy="98" r="3.500" fill="#00798a"/><circle cx="194" cy="98" r="3.500" fill="#00798a"/>
+    <text x="158" y="80" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="21" letter-spacing="2" fill="#ff7a1a">${g.label.replace(/^GENERATOR/, 'GEN')}</text>
+    <circle cx="122" cy="98" r="3.500" fill="#8f3a00"/><circle cx="194" cy="98" r="3.500" fill="#8f3a00"/>
     <rect x="214" y="40" width="70" height="66" rx="3" fill="#2a3237" stroke="#59646c" stroke-width="2"/>
     <path d="M220 48h58M220 98h58" stroke="#3b464d" stroke-width="2"/>
     <circle cx="249" cy="73" r="26" fill="#0d1012" stroke="#59646c" stroke-width="2"/>
@@ -312,7 +312,7 @@ const gensetSvg = g => `
   <rect x="170" y="10" width="9" height="26" fill="#59646c"/><rect x="167" y="7" width="15" height="5" rx="1" fill="#6d7a83"/>
   <g class="smoke" fill="#a8b3ba"><circle cx="174" cy="6" r="5"/><circle cx="174" cy="6" r="5"/><circle cx="174" cy="6" r="5"/></g>
   <circle class="lamp" cx="18" cy="22" r="6" stroke="#0d1012" stroke-width="2"/>
-  <path d="M262 8h16l-8 14z" fill="#00e5ff" transform="translate(-224 4)"/>
+  <path d="M262 8h16l-8 14z" fill="#ff7a1a" transform="translate(-224 4)"/>
 </svg>`;
 
 function build(s) {
@@ -327,7 +327,7 @@ function build(s) {
         ${[1, 2, 3].map(p => `<tr><td><i class="ph" style="background:${PH[p - 1]}"></i>L${p}</td><td id="${g.id}-v${p}">--</td><td id="${g.id}-i${p}">--</td></tr>`).join('')}
       </tbody></table>
       <table class="rd"><tbody>
-        ${[['freq', 'Frequency (Hz)', '#38c8e6'], ['hours', 'Engine hours', '#b388ff'], ['kva', 'kVA now', '#00b8d4'], ['pf', 'Power factor', '#ff6fb5']].map(([k, l, c]) => `<tr><td><i class="ph" style="background:${c}"></i>${l}</td><td id="${g.id}-${k}">--</td></tr>`).join('')}
+        ${[['freq', 'Frequency (Hz)', '#38c8e6'], ['hours', 'Engine hours', '#b388ff'], ['kva', 'kVA now', '#e65c00'], ['pf', 'Power factor', '#ff6fb5']].map(([k, l, c]) => `<tr><td><i class="ph" style="background:${c}"></i>${l}</td><td id="${g.id}-${k}">--</td></tr>`).join('')}
       </tbody></table>
     </section>`).join('');
   GENS = s.generators;
@@ -341,23 +341,23 @@ function build(s) {
     <rect class="bus" x="34" y="38" width="${RE + 16 - 34}" height="10"/><path id="pfl-busL" class="wire" d="M50 43H${LX}"/><path id="pfl-busR" class="wire" d="M${RE} 43H${LX}"/>
     <path id="pfl-load" class="wire" d="M${LX} 38V-8"/>
     <g transform="translate(${LX - 70} -74)"><rect class="node" x="0" y="0" width="140" height="66" rx="3"/>
-    <path d="M22 10 14 34h9l-3 22 15-28h-9l4-18z" fill="#00e5ff"/>
+    <path d="M22 10 14 34h9l-3 22 15-28h-9l4-18z" fill="#ff7a1a"/>
     <text class="k" x="44" y="26">AIN EBEL</text><text class="v" id="pf-load" x="44" y="50">--</text></g>
     ${s.generators.map((g, i) => `
     ${swg(g.id, gx(i))}
     <g transform="translate(0 52)"><rect id="pfb-${g.id}" class="node" x="${gx(i) - 66}" y="100" width="132" height="58" rx="3"/>
-    <circle cx="${gx(i) - 40}" cy="129" r="17" fill="none" stroke="#00e5ff" stroke-width="2.4"/>
-    <text x="${gx(i) - 40}" y="136" text-anchor="middle" style="font-size:21px;font-weight:700;fill:#00e5ff">G</text>
+    <circle cx="${gx(i) - 40}" cy="129" r="17" fill="none" stroke="#ff7a1a" stroke-width="2.4"/>
+    <text x="${gx(i) - 40}" y="136" text-anchor="middle" style="font-size:21px;font-weight:700;fill:#ff7a1a">G</text>
     <text class="k" x="${gx(i) - 15}" y="123"${g.label.length > 6 ? ' textLength="74" lengthAdjust="spacingAndGlyphs"' : ''}>${g.label}</text><text class="v" id="pf-${g.id}" x="${gx(i) - 15}" y="146" style="font-size:16px">--</text></g>`).join('')}
     ${swg("solar", 190)}
     <g transform="translate(0 52)"><rect id="pfb-solar" class="node" x="124" y="100" width="132" height="58" rx="3"/>
-    <circle cx="150" cy="129" r="17" fill="none" stroke="#00e5ff" stroke-width="2.4"/>
-    <g stroke="#00e5ff" stroke-width="2" fill="none" stroke-linecap="round"><circle cx="150" cy="129" r="4.5"/><path d="M150 118v3M150 137v3M139 129h3M158 129h3M142.2 121.2l2 2M157.8 121.2l-2 2M142.2 136.8l2-2M157.8 136.8l-2-2"/></g>
+    <circle cx="150" cy="129" r="17" fill="none" stroke="#ff7a1a" stroke-width="2.4"/>
+    <g stroke="#ff7a1a" stroke-width="2" fill="none" stroke-linecap="round"><circle cx="150" cy="129" r="4.5"/><path d="M150 118v3M150 137v3M139 129h3M158 129h3M142.2 121.2l2 2M157.8 121.2l-2 2M142.2 136.8l2-2M157.8 136.8l-2-2"/></g>
     <text class="k" x="175" y="123" style="font-size:11px;letter-spacing:0;text-transform:none" textLength="76" lengthAdjust="spacingAndGlyphs">SOLAR + BATTERY</text><text class="v" id="pf-solar" x="175" y="146" style="font-size:16px">-- kW</text></g>
     ${swg("edl", 50)}
     <g transform="translate(0 52)"><rect id="pfb-edl" class="node" x="-16" y="100" width="132" height="58" rx="3"/>
-    <circle cx="10" cy="129" r="17" fill="none" stroke="#00e5ff" stroke-width="2.4"/>
-    <g transform="translate(10 129) scale(.45) translate(-38 -46)" stroke="#00e5ff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M38 20 27 72M38 20l11 52M31 34h14M29 47h18M31 34l14 13M45 34 31 47"/></g>
+    <circle cx="10" cy="129" r="17" fill="none" stroke="#ff7a1a" stroke-width="2.4"/>
+    <g transform="translate(10 129) scale(.45) translate(-38 -46)" stroke="#ff7a1a" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M38 20 27 72M38 20l11 52M31 34h14M29 47h18M31 34l14 13M45 34 31 47"/></g>
     <text class="k" x="35" y="123" style="font-size:12px">EDL mains</text><text class="v" id="pf-edl" x="35" y="146" style="font-size:16px">--</text></g></g>`;
   built = true;
 }
@@ -381,7 +381,7 @@ const tankSvg = (pct, low, T) => {
     <path d="M84 ${y(pct)}h500" stroke="#fff" stroke-width="3" opacity=".35"/>
 </g>
   ${ticks}
-  <rect x="63" y="${y(100)}" width="5" height="${HH}" rx="2.5" fill="#0c0f11" stroke="#3a444b"/><rect x="63" y="${y(pct)}" width="5" height="${pct * HH / 100}" rx="2.5" fill="#00e5ff"/>
+  <rect x="63" y="${y(100)}" width="5" height="${HH}" rx="2.5" fill="#0c0f11" stroke="#3a444b"/><rect x="63" y="${y(pct)}" width="5" height="${pct * HH / 100}" rx="2.5" fill="#ff7a1a"/>
 </svg>
 </div>`;
 };
