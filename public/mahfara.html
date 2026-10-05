@@ -173,6 +173,9 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
 .warn3 b{animation:warn3t 3s linear infinite;animation-delay:inherit}
 @keyframes warn3{0%,90%,100%{box-shadow:inset 0 0 12px #000,0 1px 0 #3d484f;border-color:#040506}94%{box-shadow:inset 0 0 22px rgba(255,59,48,.75),0 0 16px 5px rgba(255,59,48,.9);border-color:#ff3b30}}
 @keyframes warn3t{0%,90%,100%{text-shadow:none}94%{text-shadow:0 0 14px #ff3b30,0 0 4px #ff3b30}}
+.sw{stroke:#8d9aa3;stroke-width:3;stroke-linecap:round;transform:rotate(30deg);transition:transform .45s}
+.sw.on{stroke:var(--yellow);transform:rotate(0deg)}
+.swc{fill:#12171a;stroke:#8d9aa3;stroke-width:2}
 </style>
 </head>
 <body>
@@ -330,24 +333,26 @@ function build(s) {
   if (HD) drawTrends();
   // single-line power flow: mains -> busbar -> load, generators feed the busbar from below
   const n = s.generators.length, gx = i => 190 + (i + 1) * 420 / (n + 1); GX = s.generators.map((g, i) => gx(i)); LX = (190 + gx(0)) / 2; RE = gx(n - 1);
+  const swg = (id, x) => `<path id="pfl-${id}" class="wire" d="M${x} 100V89"/><path id="pfl-${id}-u" class="wire" d="M${x} 58V49.5"/><circle class="swc" cx="${x}" cy="86" r="3.2"/><circle class="swc" cx="${x}" cy="58" r="3.2"/><circle class="swc" cx="${x + 13}" cy="63.5" r="3.2"/><line id="sw-${id}" class="sw" x1="${x}" y1="86" x2="${x}" y2="60" style="transform-origin:${x}px 86px"/>`;
   $('flow').innerHTML = `<g transform="translate(0 80)">
+    <text class="k" x="${RE}" y="30" text-anchor="end" style="font-size:11px">COMMON BUSBAR</text>
     <path class="bus" d="M50 45H${RE}"/><path id="pfl-busL" class="wire" d="M50 45H${LX}"/><path id="pfl-busR" class="wire" d="M${RE} 45H${LX}"/>
     <path id="pfl-load" class="wire" d="M${LX} 40.5V-4"/>
     <g transform="translate(${LX - 70} -70)"><rect class="node" x="0" y="0" width="140" height="66" rx="3"/>
     <path d="M22 10 14 34h9l-3 22 15-28h-9l4-18z" fill="#3aa0ff"/>
     <text class="k" x="44" y="26">AIN EBEL</text><text class="v" id="pf-load" x="44" y="50">--</text></g>
     ${s.generators.map((g, i) => `
-    <path id="pfl-${g.id}" class="wire" d="M${gx(i)} 100V49.5"/>
+    ${swg(g.id, gx(i))}
     <rect id="pfb-${g.id}" class="node" x="${gx(i) - 66}" y="100" width="132" height="58" rx="3"/>
     <circle cx="${gx(i) - 40}" cy="129" r="17" fill="none" stroke="#3aa0ff" stroke-width="2.4"/>
     <text x="${gx(i) - 40}" y="136" text-anchor="middle" style="font-size:21px;font-weight:700;fill:#3aa0ff">G</text>
     <text class="k" x="${gx(i) - 15}" y="123"${g.label.length > 6 ? ' textLength="74" lengthAdjust="spacingAndGlyphs"' : ''}>${g.label}</text><text class="v" id="pf-${g.id}" x="${gx(i) - 15}" y="146" style="font-size:16px">--</text>`).join('')}
-    <path id="pfl-solar" class="wire" d="M190 100V49.5"/>
+    ${swg("solar", 190)}
     <rect id="pfb-solar" class="node" x="124" y="100" width="132" height="58" rx="3"/>
     <circle cx="150" cy="129" r="17" fill="none" stroke="#3aa0ff" stroke-width="2.4"/>
     <g stroke="#3aa0ff" stroke-width="2" fill="none" stroke-linecap="round"><circle cx="150" cy="129" r="4.5"/><path d="M150 118v3M150 137v3M139 129h3M158 129h3M142.2 121.2l2 2M157.8 121.2l-2 2M142.2 136.8l2-2M157.8 136.8l-2-2"/></g>
-    <text class="k" x="175" y="123" style="font-size:11px;letter-spacing:0;text-transform:none">SOLAR 50 kWp</text><text class="v" id="pf-solar" x="175" y="146" style="font-size:16px">-- kW</text>
-    <path id="pfl-edl" class="wire" d="M50 100V49.5"/>
+    <text class="k" x="175" y="123" style="font-size:11px;letter-spacing:0;text-transform:none" textLength="76" lengthAdjust="spacingAndGlyphs">SOLAR + BATTERY</text><text class="v" id="pf-solar" x="175" y="146" style="font-size:16px">-- kW</text>
+    ${swg("edl", 50)}
     <rect id="pfb-edl" class="node" x="-16" y="100" width="132" height="58" rx="3"/>
     <circle cx="10" cy="129" r="17" fill="none" stroke="#3aa0ff" stroke-width="2.4"/>
     <g transform="translate(10 129) scale(.45) translate(-38 -46)" stroke="#3aa0ff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M38 20 27 72M38 20l11 52M31 34h14M29 47h18M31 34l14 13M45 34 31 47"/></g>
@@ -435,7 +440,7 @@ async function refresh() {
 
   // mains (EDL)
   const edl = v.edl;
-  const wire = (id, live, extra) => { const e = $(id); if (e) e.setAttribute('class', 'wire' + (live ? ' live' + (extra || '') : '')); };
+  const wire = (id, live, extra) => { const c = 'wire' + (live ? ' live' + (extra || '') : ''); [id, id + '-u'].forEach(k => { const e = $(k); if (e) e.setAttribute('class', c); }); const w = $(id.replace('pfl-', 'sw-')); if (w) w.setAttribute('class', 'sw' + (live ? ' on' : '')); };
   wire('pfl-edl', edl === 1, ' mains'); $('pfb-edl').setAttribute('class', 'node' + (edl === 1 ? ' on' : '')); $('pf-edl').textContent = edl == null ? '--' : edl ? 'ON' : 'OFF';
 
   // generators
@@ -485,7 +490,7 @@ async function refresh() {
   const aL = act.filter(x => x < LX), aR = act.filter(x => x > LX), mono = running || solOn ? '' : ' mains';
   $('pfl-busL').setAttribute('d', 'M' + (aL.length ? Math.min(...aL) : LX) + ' 45H' + LX); $('pfl-busR').setAttribute('d', 'M' + (aR.length ? Math.max(...aR) : LX) + ' 45H' + LX);
   wire('pfl-busL', aL.length > 0, solOn && !edlOn ? ' solar' : mono); wire('pfl-busR', aR.length > 0, mono); wire('pfl-load', act.length > 0, solOn && (running || edlOn) ? ' mix' : solOn ? ' solar' : mono); $('pf-load').textContent = fmt(tot + (solOn ? sol : 0), 1) + ' kW';
-  const sd = solOn ? (16 / (8 + 72 * Math.min(sol, 50) / 50)).toFixed(3) + 's' : ''; ['pfl-solar', 'pfl-busL', 'pfl-load'].forEach(id => { const e = $(id); if (e) e.style.animationDuration = e.classList.contains('solar') ? sd : ''; });
+  const sd = solOn ? (16 / (8 + 72 * Math.min(sol, 50) / 50)).toFixed(3) + 's' : ''; ['pfl-solar', 'pfl-solar-u', 'pfl-busL', 'pfl-load'].forEach(id => { const e = $(id); if (e) e.style.animationDuration = e.classList.contains('solar') ? sd : ''; });
 
   $('alerts').innerHTML = (alerts.length ? alerts : [['okay', 'No alerts', 'Everything reported is within normal range.']])
     .map(a => `<div class="alert ${a[0]}"><b>${a[1]}</b> ${a[2]}</div>`).join('');
