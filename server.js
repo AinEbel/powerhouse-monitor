@@ -379,6 +379,7 @@ async function mhPoll() {
 }
 // ---- AL MAHFARA counters: same rules as Al Dhour (daily kWh and fuel reset at 00:00 Beirut, monthly totals kept), own files ----
 const MH_CONS_FILE = path.join(__dirname, 'mh_consumption.json'), MH_MON_FILE = path.join(__dirname, 'mh_month.json');
+let mcBuf = [];                                    // last 3 minute readings of the tank level: bad readings are thrown away (median; a drop of more than 50 L must show in all 3)
 let mcons = { day: null, since: null, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null }, mmon = { daily: {}, fuel: {} }, mcLast = null, mcKw = 0, mcKwN = 0, mcRecent = [], meLast = null, mmSaved = 0;
 try { const j = JSON.parse(fs.readFileSync(MH_CONS_FILE, 'utf8')); if (j && j.day) mcons = j; } catch (_) {}
 try { const j = JSON.parse(fs.readFileSync(MH_MON_FILE, 'utf8')); if (j && j.daily) mmon = j; } catch (_) {}
@@ -401,17 +402,20 @@ function mhTrack(v) {
   if (L == null || !isFinite(L)) return;
   mcKw += gk; mcKwN++;
   const m = Math.floor(now / 60000), b = bparts(now);
-  if (!mcLast) { mcLast = { m, t: now, level: L }; if (!mcons.day) mcons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null }; return; }
+  if (!mcLast) { mcBuf = [L]; mcLast = { m, t: now, level: L }; if (!mcons.day) mcons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null }; return; }
   if (m === mcLast.m) return;
   if (b.day !== mcons.day) mcons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: { day: mcons.day, since: mcons.since, total: Math.round(mcons.total), refuelled: Math.round(mcons.refuelled), kwh: Math.round(mcons.kwh || 0) } };
-  const dt = (now - mcLast.t) / 3600e3, kwAvg = mcKwN ? mcKw / mcKwN : 0, rise = L - mcLast.level;
-  let used, added = 0;
-  if (rise > 20) { added = rise; used = kwAvg * LPKW_S * dt; }       // level jumped up: a refuel, the use of that minute is estimated from the load
-  else used = Math.max(0, -rise);
+  mcBuf.push(L); if (mcBuf.length > 3) mcBuf.shift();
+  let Le = [...mcBuf].sort((x, y) => x - y)[Math.floor(mcBuf.length / 2)];      // median of the last readings
+  if (Le < mcLast.level - 50) Le = Math.max(...mcBuf);                         // a big drop must be seen in every one of the last readings
+  const dt = (now - mcLast.t) / 3600e3, kwAvg = mcKwN ? mcKw / mcKwN : 0, rise = Le - mcLast.level;
+  let used = 0, added = 0, lvl = mcLast.level;
+  if (rise > 20) { added = rise; used = kwAvg * LPKW_S * dt; lvl = Le; }       // level jumped up and stayed: a refuel, the use of that minute is estimated from the load
+  else if (rise < 0) { used = -rise; lvl = Le; }                                 // only a new lowest level counts as use, so a level that wobbles up and down adds nothing
   mmon.fuel[b.day] = (mmon.fuel[b.day] || 0) + used;
   mcons.total += used; mcons.refuelled += added; mcons.hours[b.hour] = (mcons.hours[b.hour] || 0) + used;
   mcRecent.push({ t: now, used }); mcRecent = mcRecent.filter(x => x.t > now - 600e3);
-  mcLast = { m, t: now, level: L }; mcKw = 0; mcKwN = 0;
+  mcLast = { m, t: now, level: lvl }; mcKw = 0; mcKwN = 0;
   fs.writeFile(MH_CONS_FILE, JSON.stringify(mcons), () => {});
 }
 function mhFuelToday() {
