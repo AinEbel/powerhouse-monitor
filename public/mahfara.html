@@ -645,7 +645,7 @@ function setStatus(c, t) { $('status').className = 'status ' + c; $('statustext'
 // outside temperature at Ain Ebel (free Open-Meteo service, no key), refreshed every 10 minutes
 async function loadTemp() {
   try {
-    const r = await fetch('about:blank');
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.10&longitude=35.38&current=temperature_2m&timezone=auto');
     const t = (await r.json()).current.temperature_2m;
     if (typeof t === 'number') $('outtemp').textContent = t.toFixed(1) + ' °C';
   } catch (e) {}
