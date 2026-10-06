@@ -346,10 +346,10 @@ const MH_READS = [
   { group: 'FUEL LEVEL', pts: [['fuel_l', 'Fuel Level']] }
 ];
 function mhScale(key, x) {                       // the cloud sends each float with its decimals baked in: volts and Hz x100, amps x1e6, kW x1e5 (checked against the Manager page)
-  const k = key.split('.').pop();
+  const k = key.split('.').pop(), sol = key.startsWith('solar.');   // the solar meter is set up with fewer decimals than the generator meters: amps x1e3, kW x1e2 (checked against the Manager: 34.274 A, 17.21 kW)
   if (/^v[123]$/.test(k) || k === 'freq') return x / 100;
-  if (/^i[123]$/.test(k)) return x / 1e6;
-  if (k === 'kw') return x / 1e5;
+  if (/^i[123]$/.test(k)) return x / (sol ? 1e3 : 1e6);
+  if (k === 'kw') return x / (sol ? 1e2 : 1e5);
   return x;
 }
 async function mhPoll() {
