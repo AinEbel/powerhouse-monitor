@@ -292,12 +292,15 @@ function trackToday(v) {
   cLast = { m, t: now, level: L, counter: c }; cKw = 0; cKwN = 0;
   fs.writeFile(CONS_FILE, JSON.stringify(cons), () => {});
 }
+// KWH/L can be started again by hand (tap on the KWH/L box): only the ratio's starting point moves, kWh today and fuel today are never touched.
+// The starting point lives in the day's counters (c.rb), so it is saved and backed up with them and is dropped at 00:00 with the day.
+function ratioOf(c) { return c.rb ? { since: c.rb.ts, kwh: +((c.kwh || 0) - c.rb.kwh).toFixed(3), fuel: +(c.total - c.rb.fuel).toFixed(3) } : null; }
 function fuelToday() {
   const now = Date.now(), cur = bparts(now), r = cRecent.reduce((a, x) => a + x.used, 0), span = cRecent.length ? Math.max(60e3, now - cRecent[0].t + 60e3) : 0;
   const kh = cons.kwhH || {}, hs = [...new Set([...Object.keys(cons.hours), ...Object.keys(kh)])].map(Number).sort((a, b) => a - b);
   return { day: cons.day, since: cons.since, total: Math.round(cons.total), refuelled: Math.round(cons.refuelled), curHour: cur.hour, kwh: Math.round(cons.kwh || 0), month: monthTotal(),
     hours: hs.map(h => ({ h, used: Math.round(cons.hours[h] || 0), kwh: Math.round(kh[h] || 0) })),
-    rate: span ? +(r / (span / 3600e3)).toFixed(1) : null, prev: cons.prev };
+    rate: span ? +(r / (span / 3600e3)).toFixed(1) : null, prev: cons.prev, ratio: ratioOf(cons) };
 }
 // ---------- Who is online: every open page asks for /api/status?v=<random id> every few seconds ----------
 const viewers = new Map();
@@ -439,7 +442,7 @@ function mhFuelToday() {
   const kh = mcons.kwhH || {}, hs = [...new Set([...Object.keys(mcons.hours), ...Object.keys(kh)])].map(Number).sort((a, b) => a - b);
   return { day: mcons.day, since: mcons.since, total: Math.round(mcons.total), refuelled: Math.round(mcons.refuelled), curHour: cur.hour, kwh: Math.round(mcons.kwh || 0), month: mhMonthTotal(),
     hours: hs.map(h => ({ h, used: Math.round(mcons.hours[h] || 0), kwh: Math.round(kh[h] || 0) })),
-    rate: span ? +(r / (span / 3600e3)).toFixed(1) : null, prev: mcons.prev };
+    rate: span ? +(r / (span / 3600e3)).toFixed(1) : null, prev: mcons.prev, ratio: ratioOf(mcons) };
 }
 setTimeout(() => { mhPoll(); setInterval(mhPoll, 20000); }, 15000);
 
@@ -535,12 +538,20 @@ http.createServer((req, res) => {
           for (const [h, v] of Object.entries(c.hours || {})) cons.hours[h] = Math.max(cons.hours[h] || 0, +v || 0);
           cons.kwhH = cons.kwhH || {}; for (const [h, v] of Object.entries(c.kwhH || {})) cons.kwhH[h] = Math.max(cons.kwhH[h] || 0, +v || 0);
           if (c.prev && !cons.prev) cons.prev = c.prev;
+          if (c.rb && !cons.rb && isFinite(c.rb.kwh) && isFinite(c.rb.fuel)) cons.rb = { ts: +c.rb.ts, kwh: +c.rb.kwh, fuel: +c.rb.fuel };
           fs.writeFile(CONS_FILE, JSON.stringify(cons), () => {}); out.today = true;
         }
         res.writeHead(200, H); return res.end(JSON.stringify({ ok: true, ...out }));
       } catch (e) { res.writeHead(400, H); return res.end(JSON.stringify({ error: 'bad data' })); }
     });
     return;
+  }
+  if ((url === '/api/ratio-reset' || url === '/api/mahfara/ratio-reset') && req.method === 'POST') {     // KWH/L starts again from now; nothing else changes
+    const H = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, mhS = url.startsWith('/api/mahfara/'), c = mhS ? mcons : cons;
+    if (!c.day) { res.writeHead(409, H); return res.end(JSON.stringify({ error: 'no data yet today' })); }
+    c.rb = { ts: Date.now(), kwh: c.kwh || 0, fuel: c.total };
+    fs.writeFile(mhS ? MH_CONS_FILE : CONS_FILE, JSON.stringify(c), () => {});
+    res.writeHead(200, H); return res.end(JSON.stringify({ ok: true, ratio: ratioOf(c) }));
   }
   if (url === '/api/alarm' && req.method === 'POST') {
     let body = ''; req.on('data', d => { body += d; if (body.length > 1e4) req.destroy(); });
@@ -579,6 +590,7 @@ http.createServer((req, res) => {
           for (const [h, v] of Object.entries(c.hours || {})) mcons.hours[h] = Math.max(mcons.hours[h] || 0, +v || 0);
           mcons.kwhH = mcons.kwhH || {}; for (const [h, v] of Object.entries(c.kwhH || {})) mcons.kwhH[h] = Math.max(mcons.kwhH[h] || 0, +v || 0);
           if (c.prev && !mcons.prev) mcons.prev = c.prev;
+          if (c.rb && !mcons.rb && isFinite(c.rb.kwh) && isFinite(c.rb.fuel)) mcons.rb = { ts: +c.rb.ts, kwh: +c.rb.kwh, fuel: +c.rb.fuel };
           fs.writeFile(MH_CONS_FILE, JSON.stringify(mcons), () => {}); out.today = true;
         }
         res.writeHead(200, H); return res.end(JSON.stringify({ ok: true, ...out }));
