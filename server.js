@@ -390,7 +390,8 @@ async function mhPoll() {
 }
 // ---- AL MAHFARA counters: same rules as Al Dhour (daily kWh and fuel reset at 00:00 Beirut, monthly totals kept), own files ----
 const MH_CONS_FILE = path.join(__dirname, 'mh_consumption.json'), MH_MON_FILE = path.join(__dirname, 'mh_month.json');
-let mcBuf = [];                                    // last 3 minute readings of the tank level: bad readings are thrown away (median; a drop of more than 50 L must show in all 3)
+let mcBuf = [];                                    // last 3 minute readings of the tank level: only used when all 3 agree (see mhTrack)
+const MH_TANK_L = +E.MAHFARA_TANK_L || 4000, MH_STABLE_L = +E.MAHFARA_STABLE_L || 20;
 let mcons = { day: null, since: null, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null }, mmon = { daily: {}, fuel: {} }, mcLast = null, mcKw = 0, mcKwN = 0, mcRecent = [], meLast = null, mmSaved = 0;
 try { const j = JSON.parse(fs.readFileSync(MH_CONS_FILE, 'utf8')); if (j && j.day) mcons = j; } catch (_) {}
 try { const j = JSON.parse(fs.readFileSync(MH_MON_FILE, 'utf8')); if (j && j.daily) mmon = j; } catch (_) {}
@@ -421,12 +422,18 @@ function mhTrack(v) {
   if (L == null || !isFinite(L)) return;
   mcKw += gk; mcKwN++;
   const m = Math.floor(now / 60000), b = bparts(now);
-  if (!mcLast) { mcBuf = [L]; mcLast = { m, t: now, level: L }; if (!mcons.day) mcons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null }; return; }
+  if (!mcLast) { mcBuf = [L]; mcLast = { m, t: now, level: null }; if (!mcons.day) mcons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null }; return; }
   if (m === mcLast.m) return;
   if (b.day !== mcons.day) mcons = { day: b.day, since: now, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: { day: mcons.day, since: mcons.since, total: Math.round(mcons.total), refuelled: Math.round(mcons.refuelled), kwh: Math.round(mcons.kwh || 0) } };
-  mcBuf.push(L); if (mcBuf.length > 3) mcBuf.shift();
-  let Le = [...mcBuf].sort((x, y) => x - y)[Math.floor(mcBuf.length / 2)];      // median of the last readings
-  if (Le < mcLast.level - 50) Le = Math.max(...mcBuf);                         // a big drop must be seen in every one of the last readings
+  mcBuf.push(L); if (mcBuf.length > 5) mcBuf.shift();
+  // The level sensor sometimes sends nonsense for a minute or two (84, 65318, 680 between readings of 978). A level is only used once the
+  // last 3 minute readings agree within MH_STABLE_L and lie inside the tank (a change of more than 50 L: the last 5); until then nothing is
+  // counted, and the change is counted later in one go.
+  const agree = n => mcBuf.length >= n && mcBuf.slice(-n).every(x => x >= 0 && x <= MH_TANK_L) && Math.max(...mcBuf.slice(-n)) - Math.min(...mcBuf.slice(-n)) <= MH_STABLE_L;
+  if (!agree(3)) { mcLast.m = m; return; }
+  const Le = [...mcBuf.slice(-3)].sort((x, y) => x - y)[1];                     // median of the 3 agreeing readings
+  if (mcLast.level == null) { mcLast = { m, t: now, level: Le }; mcKw = 0; mcKwN = 0; return; }   // first good level after a start: nothing to compare with yet
+  if (Math.abs(Le - mcLast.level) > 50 && !agree(5)) { mcLast.m = m; return; }
   const dt = (now - mcLast.t) / 3600e3, kwAvg = mcKwN ? mcKw / mcKwN : 0, rise = Le - mcLast.level;
   let used = 0, added = 0, lvl = mcLast.level;
   if (rise > 20) { added = rise; used = kwAvg * LPKW_S * dt; lvl = Le; }       // level jumped up and stayed: a refuel, the use of that minute is estimated from the load
