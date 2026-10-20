@@ -1,0 +1,34 @@
+# Saves a copy of all recorded data from the live site (read only, changes nothing on the site).
+name: data-backup
+on:
+  push:
+    branches: [data-backup]
+  workflow_dispatch:
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all recorded data
+        env:
+          SITE: https://aldhour-powerhouse.onrender.com
+        run: |
+          set -e
+          mkdir -p backup/history && cd backup
+          get() { curl -fsS --retry 5 --retry-delay 10 --max-time 120 "$SITE$1" -o "$2"; }
+          get /api/status warmup.json || sleep 60
+          get /api/backup backup.json
+          get /api/mahfara/backup mahfara-backup.json
+          get /api/refuels refuels.json
+          get /api/fuellog.csv fuel-level-log.csv
+          get /api/fuellog fuellog.json
+          get /api/status status.json
+          get /api/mahfara/status mahfara-status.json
+          now=$(($(date +%s) * 1000)); from=$((now - 30 * 86400000)); w=$((300 * 60000))
+          for ((a = from; a < now; a += w)); do get "/api/history?from=$a&to=$((a + w - 1))" "history/$a.json"; done
+          rm -f warmup.json
+          ls -la . && wc -c backup.json mahfara-backup.json refuels.json fuel-level-log.csv && ls history | wc -l
+      - uses: actions/upload-artifact@v4
+        with:
+          name: al-dhour-data-backup
+          path: backup
+          retention-days: 90
