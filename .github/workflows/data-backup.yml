@@ -27,6 +27,11 @@ jobs:
           for ((a = from; a < now; a += w)); do get "/api/history?from=$a&to=$((a + w - 1))" "history/$a.json"; done
           rm -f warmup.json
           ls -la . && wc -c backup.json mahfara-backup.json refuels.json fuel-level-log.csv && ls history | wc -l
+          node -e '
+          const fs=require("fs"),J=f=>JSON.parse(fs.readFileSync(f));const b=J("backup.json"),m=J("mahfara-backup.json"),r=J("refuels.json"),s=J("status.json");
+          let h=0;for(const f of fs.readdirSync("history"))h+=J("history/"+f).points.length;
+          const fl=fs.readFileSync("fuel-level-log.csv","utf8").trim().split("\n").length-1;
+          console.log("::notice title=Backup summary::today "+b.cons.day+" kWh="+Math.round(b.cons.kwh||0)+" fuel="+Math.round(b.cons.total)+" L | days="+Object.keys(b.mon.daily).length+" | solar total="+Math.round(b.sol.kwh)+" kWh | refuels="+r.list.length+" | fuel log lines="+fl+" | chart points="+h+" | alarm="+(s.alarm&&s.alarm.litres)+" | mahfara days="+Object.keys(m.mon.daily).length+" solar="+Math.round(m.sol.kwh));'
       - uses: actions/upload-artifact@v4
         with:
           name: al-dhour-data-backup
