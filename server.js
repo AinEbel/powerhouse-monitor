@@ -239,6 +239,7 @@ const SOL_FILE = path.join(__dirname, 'solar_total.json');
 let sol = { kwh: 0, since: null }, solLast = null, solSaved = 0;
 try { const j = JSON.parse(fs.readFileSync(SOL_FILE, 'utf8')); if (j && isFinite(j.kwh)) sol = { kwh: +j.kwh, since: j.since || null }; } catch (_) {}
 mon.fuel = mon.fuel || {};                       // litres of fuel used per day, for the monthly consumption
+mon.solar = mon.solar || {};                     // solar kWh per day
 function periodStart(day) { let [y, m, d] = day.split('-').map(Number); if (d < 5) { m--; if (m < 1) { m = 12; y--; } } return y + '-' + String(m).padStart(2, '0') + '-05'; }
 function monthTotal() {
   let [y, m, d] = bparts(Date.now()).day.split('-').map(Number);
@@ -254,12 +255,12 @@ function trackToday(v) {
   const L = v.fuel_l, c = v.fuel_counter, now = Date.now();
   const skw = solarKw(v), kwNow = gens.reduce((a, g) => a + (v[g.id + '.kw'] || 0), 0) + skw;     // energy produced: kW added up over time (generators + solar)
   { if (!sol.since) sol.since = now;
-    if (solLast && now - solLast.t < 120e3) sol.kwh += (skw + solLast.kw) / 2 * (now - solLast.t) / 3600e3;
+    if (solLast && now - solLast.t < 120e3) { const e = (skw + solLast.kw) / 2 * (now - solLast.t) / 3600e3, dk = bparts(now).day; sol.kwh += e; mon.solar[dk] = (mon.solar[dk] || 0) + e; }   // running total (never reset) + solar kWh of each day (Lebanon time, so it starts again at 00:00)
     solLast = { t: now, kw: skw };
     if (now - solSaved > 60e3) { solSaved = now; fs.writeFile(SOL_FILE, JSON.stringify(sol), () => {}); } }
   { const dk = bparts(now).day;                          // kWh produced is kept for every day, so any day range can be added up
     if (eLast && now - eLast.t < 120e3) mon.daily[dk] = (mon.daily[dk] || 0) + (kwNow + eLast.kw) / 2 * (now - eLast.t) / 3600e3;
-    if (now - monSaved > 60e3) { monSaved = now; const old = Object.keys(mon.daily).sort().slice(0, -120); old.forEach(k => delete mon.daily[k]); Object.keys(mon.fuel).sort().slice(0, -120).forEach(k => delete mon.fuel[k]); fs.writeFile(MON_FILE, JSON.stringify(mon), () => {}); } }
+    if (now - monSaved > 60e3) { monSaved = now; const old = Object.keys(mon.daily).sort().slice(0, -120); old.forEach(k => delete mon.daily[k]); Object.keys(mon.fuel).sort().slice(0, -120).forEach(k => delete mon.fuel[k]); Object.keys(mon.solar).sort().slice(0, -120).forEach(k => delete mon.solar[k]); fs.writeFile(MON_FILE, JSON.stringify(mon), () => {}); } }
   if (cons.day) {
     if (eLast && now - eLast.t < 120e3) { const e = (kwNow + eLast.kw) / 2 * (now - eLast.t) / 3600e3; cons.kwh = (cons.kwh || 0) + e; cons.kwhH = cons.kwhH || {}; const hr = bparts(now).hour; cons.kwhH[hr] = (cons.kwhH[hr] || 0) + e; }
   }
@@ -287,7 +288,7 @@ function ratioOf(c) { return c.rb ? { since: c.rb.ts, kwh: +((c.kwh || 0) - c.rb
 function fuelToday() {
   const now = Date.now(), cur = bparts(now), r = cRecent.reduce((a, x) => a + x.used, 0), span = cRecent.length ? Math.max(60e3, now - cRecent[0].t + 60e3) : 0;
   const kh = cons.kwhH || {}, hs = [...new Set([...Object.keys(cons.hours), ...Object.keys(kh)])].map(Number).sort((a, b) => a - b);
-  return { day: cons.day, since: cons.since, total: Math.round(cons.total), refuelled: Math.round(cons.refuelled), curHour: cur.hour, kwh: Math.round(cons.kwh || 0), month: monthTotal(),
+  return { day: cons.day, since: cons.since, total: Math.round(cons.total), refuelled: Math.round(cons.refuelled), curHour: cur.hour, kwh: Math.round(cons.kwh || 0), solarToday: +(mon.solar[bparts(now).day] || 0).toFixed(1), month: monthTotal(),
     hours: hs.map(h => ({ h, used: Math.round(cons.hours[h] || 0), kwh: Math.round(kh[h] || 0) })),
     rate: span ? +(r / (span / 3600e3)).toFixed(1) : null, prev: cons.prev, ratio: ratioOf(cons) };
 }
@@ -448,7 +449,7 @@ setTimeout(() => { mhPoll(); setInterval(mhPoll, 20000); }, 15000);
 function mergeCounters(j) {
   if (!j) return null;
   const out = {};
-  if (j.mon && j.mon.daily) { for (const [k, v] of Object.entries(j.mon.daily)) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mon.daily[k] = Math.max(mon.daily[k] || 0, +v); out.days = Object.keys(mon.daily).length; for (const [k, v] of Object.entries((j.mon && j.mon.fuel) || {})) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mon.fuel[k] = Math.max(mon.fuel[k] || 0, +v); fs.writeFile(MON_FILE, JSON.stringify(mon), () => {}); }
+  if (j.mon && j.mon.daily) { for (const [k, v] of Object.entries(j.mon.daily)) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mon.daily[k] = Math.max(mon.daily[k] || 0, +v); out.days = Object.keys(mon.daily).length; for (const [k, v] of Object.entries((j.mon && j.mon.fuel) || {})) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mon.fuel[k] = Math.max(mon.fuel[k] || 0, +v); for (const [k, v] of Object.entries(j.mon.solar || {})) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mon.solar[k] = Math.max(mon.solar[k] || 0, +v); fs.writeFile(MON_FILE, JSON.stringify(mon), () => {}); }
   if (j.sol && isFinite(j.sol.kwh) && j.sol.kwh >= 0) { sol.kwh = Math.max(sol.kwh, +j.sol.kwh); if (j.sol.since && (!sol.since || j.sol.since < sol.since)) sol.since = +j.sol.since; fs.writeFile(SOL_FILE, JSON.stringify(sol), () => {}); out.solar = Math.round(sol.kwh); }
   const c = j.cons;
   if (c && c.day && !cons.day && c.day === bparts(Date.now()).day) cons = { day: c.day, since: c.since || Date.now(), total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null };   // fresh start, nothing counted yet today: take the day over
