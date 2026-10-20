@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Restore recorded data</title>
+<style>
+body{margin:0;padding:16px;background:#121518;color:#e8edf0;font:16px/1.45 system-ui,sans-serif}
+.wrap{max-width:640px;margin:0 auto}
+h1{font-size:24px;margin:0 0 6px}p{color:#8d9aa3;margin:0 0 16px}
+label{display:block;margin:14px 0 4px;font-weight:600}
+input[type=file]{width:100%;color:#8d9aa3}
+button{margin-top:20px;padding:10px 22px;font-size:17px;font-weight:700;background:#ffc21a;color:#111;border:0;border-radius:3px;cursor:pointer}
+pre{white-space:pre-wrap;background:#0c0f11;border:1px solid #38424a;padding:10px;margin-top:16px;min-height:2em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Restore recorded data</h1>
+  <p>Use this only if the data did not come over by itself after a new version was put online (check <a href="/api/handover" style="color:#ffc21a">/api/handover</a>).
+  Pick the files you saved before. Nothing is ever lowered or deleted: only missing data is added, and for counters the larger value is kept. Works in the first 60 minutes after a start.</p>
+  <label for="full">Full data file (al-dhour-all-data.json)</label><input id="full" type="file" accept=".json,application/json">
+  <label for="dh">Al Dhour counters (backup)</label><input id="dh" type="file" accept=".json,application/json">
+  <label for="mh">Al Mahfara counters (mahfara backup)</label><input id="mh" type="file" accept=".json,application/json">
+  <label for="rf">Refuelling list (refuels)</label><input id="rf" type="file" accept=".json,application/json">
+  <label for="fl">Fuel level log (fuel-level-log.csv)</label><input id="fl" type="file" accept=".csv,text/csv">
+  <button id="go" type="button">Restore</button>
+  <pre id="out"></pre>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const read = id => { const f = $(id).files[0]; return f ? f.text() : Promise.resolve(null); };
+// the fuel log file is in Lebanon time (UTC+3), the same way the monitor writes it
+const parseFuelCsv = t => t.split(/\r?\n/).slice(1).filter(Boolean).map(l => { const [d, level, drop, kw] = l.split(','); return { t: Date.parse(d.replace(' ', 'T') + 'Z') - 3 * 3600000, level: +level, drop: drop === '' ? null : +drop, kw: +kw }; }).filter(r => isFinite(r.t) && isFinite(r.level));
+$('go').onclick = async () => {
+  const out = $('out');
+  try {
+    const [full, dh, mh, rf, fl] = await Promise.all(['full', 'dh', 'mh', 'rf', 'fl'].map(read));
+    const j = full ? JSON.parse(full) : {};
+    if (dh) Object.assign(j, (({ cons, mon, sol }) => ({ cons, mon, sol }))(JSON.parse(dh)));
+    if (mh) j.mh = Object.assign(j.mh || {}, (({ cons, mon, sol }) => ({ cons, mon, sol }))(JSON.parse(mh)));
+    if (rf) { const r = JSON.parse(rf); j.refuels = Array.isArray(r) ? r : r.list || []; }
+    if (fl) j.fuelLog = parseFuelCsv(fl);
+    if (!Object.keys(j).length) { out.textContent = 'Pick at least one file.'; return; }
+    out.textContent = 'Sending...';
+    const r = await fetch('/api/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(j) });
+    out.textContent = (r.ok ? 'Done. ' : 'Not restored: ') + await r.text();
+  } catch (e) { out.textContent = 'Could not read a file: ' + e.message; }
+};
+</script>
+</body>
+</html>

@@ -1,2 +1,12 @@
 history.json
 node_modules
+# recorded data lives on the server only, never in the code
+consumption.json
+month.json
+solar_total.json
+refuels.json
+fuellog.json
+alarm.json
+mh_consumption.json
+mh_month.json
+mh_solar_total.json

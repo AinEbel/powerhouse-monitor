@@ -41,7 +41,7 @@ h1{font-size:34px;font-weight:700;margin:0;text-transform:uppercase;letter-spaci
 h2{font-size:17px;font-weight:600;margin:0 0 12px;color:var(--steel);text-transform:uppercase;letter-spacing:.12em;display:flex;align-items:center;gap:9px}
 h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .top{display:grid;grid-template-columns:minmax(320px,1.15fr) 1fr;gap:14px;margin-bottom:14px}
-.gens{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.gens{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:14px 0}
 .charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
 @media(max-width:840px){.top,.gens,.charts{grid-template-columns:1fr}h1{font-size:26px}}
 .lcd{display:inline-block;background:var(--lcd);border:2px solid #040506;box-shadow:inset 0 0 12px #000,0 1px 0 #3d484f;border-radius:3px;padding:8px 14px 6px}
@@ -139,6 +139,22 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
 @keyframes shake{50%{transform:translateY(.9px)}}
 .lamp{fill:#3a444b}.on .lamp{fill:var(--ok);filter:drop-shadow(0 0 4px var(--ok))}
 @media(prefers-reduced-motion:reduce){.on .fan,.on .smoke circle,.on .eng,.wire.live{animation:none}}
+/* solar drawing: bright sun when producing (5 kW and more), cloudy below 5 kW, dark below 1 kW */
+.sky,.sun,.clouds,.night,.pvshine{transition:opacity 1.2s}
+.sky-cloud,.sky-dark,.clouds,.night{opacity:0}
+.solset[data-sky="cloud"] .sky-cloud,.solset[data-sky="dark"] .sky-dark{opacity:1}
+.solset[data-sky="cloud"] .clouds,.solset[data-sky="dark"] .night{opacity:1}
+.solset[data-sky="cloud"] .sun{opacity:.45}.solset[data-sky="dark"] .sun{opacity:0}
+.solset[data-sky="sun"] .sun{filter:drop-shadow(0 0 6px #ffd23f) drop-shadow(0 0 16px #ffb30088)}
+.rays{transform-box:fill-box;transform-origin:center}
+.solset[data-sky="sun"] .rays{animation:spin 24s linear infinite}
+.clouds g{animation:drift 9s ease-in-out infinite alternate}.clouds g+g{animation-duration:12s}
+@keyframes drift{to{transform:translateX(16px)}}
+.pvshine{opacity:0}.solset[data-sky="sun"] .pvshine{opacity:.55}.solset[data-sky="dark"] .pv{filter:brightness(.45)}
+.dccable{stroke:#3a444b;stroke-width:3;fill:none}.solset.on .dccable{stroke:#39ff14;stroke-dasharray:6 5;animation:dash .55s linear infinite;filter:drop-shadow(0 0 2px #39ff14)}
+.solset .lamp{fill:#3a444b}.solset.on .lamp{fill:var(--ok);filter:drop-shadow(0 0 4px var(--ok))}
+.solset .inv-wave{stroke:#4a555c}.solset.on .inv-wave{stroke:#39ff14}
+@media(prefers-reduced-motion:reduce){.solset .rays,.clouds g,.solset.on .dccable{animation:none}}
 /* trends */
 .rangebar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .rangebar button,.seg button{font:600 15px "Barlow Condensed",sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;background:#0c0f11;color:var(--steel);border:1px solid #3a444b;border-radius:3px;cursor:pointer}
@@ -312,8 +328,56 @@ const gensetSvg = g => `
   <path d="M262 8h16l-8 14z" fill="#ffc21a" transform="translate(-224 4)"/>
 </svg>`;
 
+// Solar plant drawing: sky (sun / clouds / night), three solar panels on stands, DC cable to the inverter.
+const pvPanel = x0 => {             // one tilted panel: bottom edge y=100, top edge y=62, leaning back by 12
+  const P = (u, w) => [x0 + u * 50 + w * 12, 100 - w * 38], pt = (u, w) => P(u, w).map(n => n.toFixed(1)).join(' ');
+  let g = `<path class="pv" d="M${pt(0, 0)}L${pt(1, 0)}L${pt(1, 1)}L${pt(0, 1)}Z" fill="#1d3a5f" stroke="#9fb0ba" stroke-width="2"/>`;
+  for (const u of [.25, .5, .75]) g += `<path d="M${pt(u, 0)}L${pt(u, 1)}" stroke="#6f8aa3" stroke-width="1"/>`;
+  for (const w of [1 / 3, 2 / 3]) g += `<path d="M${pt(0, w)}L${pt(1, w)}" stroke="#6f8aa3" stroke-width="1"/>`;
+  g += `<path class="pvshine" d="M${pt(.08, .9)}L${pt(.38, .9)}L${pt(.18, .35)}Z" fill="#fff"/>`;
+  return g + `<path d="M${x0 + 8} 100v22M${x0 + 42} 100v22M${x0 + 20} 69l-10 53" stroke="#6d7a83" stroke-width="3"/>`;
+};
+const solarSvg = sol => `
+<svg id="${sol.id}-svg" class="solset" data-sky="dark" viewBox="0 0 300 140" role="img" aria-label="Solar panels and inverter">
+  <defs>
+    <linearGradient id="skySun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f7fc4"/><stop offset="1" stop-color="#9fd4f2"/></linearGradient>
+    <linearGradient id="skyCloud" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55626b"/><stop offset="1" stop-color="#93a0a8"/></linearGradient>
+    <linearGradient id="skyDark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#070a14"/><stop offset="1" stop-color="#1b2236"/></linearGradient>
+  </defs>
+  <rect class="sky" x="0" y="0" width="300" height="122" fill="url(#skySun)"/>
+  <rect class="sky sky-cloud" x="0" y="0" width="300" height="122" fill="url(#skyCloud)"/>
+  <rect class="sky sky-dark" x="0" y="0" width="300" height="122" fill="url(#skyDark)"/>
+  <g class="night" fill="#dfe6ff"><circle cx="40" cy="18" r="1.3"/><circle cx="98" cy="30" r="1"/><circle cx="140" cy="12" r="1.4"/><circle cx="196" cy="26" r="1"/><circle cx="250" cy="14" r="1.3"/><circle cx="276" cy="38" r="1"/>
+    <path d="M66 14a13 13 0 1 0 12 19a10 10 0 1 1-12-19z" fill="#e8ecf5" opacity=".9"/></g>
+  <g class="sun"><g class="rays" stroke="#ffd23f" stroke-width="3" stroke-linecap="round">${Array.from({ length: 12 }, (_, i) => { const a = i * Math.PI / 6, c = Math.cos(a), sn = Math.sin(a); return `<path d="M${(150 + 19 * c).toFixed(1)} ${(30 + 19 * sn).toFixed(1)}L${(150 + 27 * c).toFixed(1)} ${(30 + 27 * sn).toFixed(1)}"/>`; }).join('')}</g>
+    <circle cx="150" cy="30" r="14" fill="#ffd23f" stroke="#ffb300" stroke-width="2"/></g>
+  <g class="clouds" fill="#d5dbe0" stroke="#aab4bb" stroke-width="1"><g><path d="M112 44a12 12 0 0 1 22-7a10 10 0 0 1 18 4a8 8 0 0 1-2 16h-36a7 7 0 0 1-2-13z"/></g><g><path d="M196 30a10 10 0 0 1 19-5a8 8 0 0 1 14 4a7 7 0 0 1-2 13h-30a6 6 0 0 1-1-12z"/></g></g>
+  <rect x="0" y="122" width="300" height="18" fill="#22282c"/><path d="M0 122h300" stroke="#4a555c" stroke-width="2"/>
+  ${[8, 66, 124].map(pvPanel).join('')}
+  <path class="dccable" d="M180 96H210V100"/>
+  <rect x="210" y="52" width="74" height="66" rx="4" fill="#d6dbdf" stroke="#8d9aa3" stroke-width="2"/>
+  <rect x="219" y="61" width="56" height="26" rx="2" fill="#16191b"/>
+  <path class="inv-wave" d="M224 74q6-11 12 0t12 0t12 0t12 0" fill="none" stroke-width="2.4"/>
+  <text x="247" y="105" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="13" letter-spacing="1.5" fill="#3a444b">INVERTER</text>
+  <circle class="lamp" cx="276" cy="110" r="3.5"/><path d="M236 118v4M258 118v4" stroke="#6d7a83" stroke-width="3"/>
+</svg>`;
+
 function build(s) {
-  $('gens').innerHTML = s.generators.map((g, n) => `
+  const sol = s.solar;
+  $('gens').innerHTML = (sol ? `
+    <section class="panel">
+      <div class="ghead"><h2>${sol.label}</h2><span class="tag" id="${sol.id}-tag">--</span></div>
+      <div class="photo" id="${sol.id}-photo">${solarSvg(sol)}${sol.kwp ? `<span class="badge">${fmt(sol.kwp)} kWp</span>` : ''}</div>
+      <div class="lcd"><span class="big" id="${sol.id}-kw">--</span><small>kW</small></div>
+      <div class="bar" id="${sol.id}-barwrap"><i id="${sol.id}-bar" style="background:#39ff14"></i></div>
+      <div class="sub" id="${sol.id}-load" style="margin-top:0"></div>
+      <table><thead><tr><th></th><th>Volts</th><th>Amps</th></tr></thead><tbody>
+        ${[1, 2, 3].map(p => `<tr><td><i class="ph" style="background:${PH[p - 1]}"></i>L${p}</td><td id="${sol.id}-v${p}">--</td><td id="${sol.id}-i${p}">--</td></tr>`).join('')}
+      </tbody></table>
+      <table class="rd"><tbody>
+        ${[['freq', 'Frequency (Hz)', '#38c8e6'], ['total', 'Production total', '#39ff14'], ['kva', 'kVA now', '#ff9f1c'], ['pf', 'Power factor', '#ff6fb5']].map(([k, l, c]) => `<tr><td><i class="ph" style="background:${c}"></i>${l}</td><td id="${sol.id}-${k}">--</td></tr>`).join('')}
+      </tbody></table>
+    </section>` : '') + s.generators.map((g, n) => `
     <section class="panel">
       <div class="ghead"><h2>${g.label}</h2><span class="tag" id="${g.id}-tag">--</span></div>
       <div class="photo" id="${g.id}-photo">${gensetSvg(g)}<img src="photos/${g.id}.jpg" alt="${g.label} generator" onload="this.parentNode.classList.add('has')" onerror="this.remove()">${g.ratedKva ? `<span class="badge">${fmt(g.ratedKva)} kVA</span>` : ''}</div>
@@ -467,11 +531,24 @@ async function refresh() {
   $('totkva').textContent = running ? fmt(totKva, 1) : '--';
   $('totpf').textContent = running && totKva > 1 ? fmt(Math.min(1, tot / totKva), 2) : '--';
   $('totkw').textContent = fmt(tot, 1);
-  // Solar estimate until the solar meter is connected: solar pushes only kW (no kVAr), so the generators' power factor falls from SOLAR_PF0 (no solar) to SOLAR_PF1 (solar at full SOLAR_KWP).
-  const SOLAR_KWP = 50, SOLAR_PF0 = 0.98, SOLAR_PF1 = 0.66, solReal = v['solar.kw'];
-  let solEst = null;
-  if (solReal == null && running && totKva > 1) { const gpf = Math.min(1, tot / totKva); solEst = Math.max(0, Math.min(SOLAR_KWP, SOLAR_KWP * (SOLAR_PF0 - gpf) / (SOLAR_PF0 - SOLAR_PF1))); if (solEst < 2) solEst = 0; }
-  const sol = solReal != null ? solReal : solEst, solOn = sol != null && sol > 1; wire('pfl-solar', solOn, ' solar'); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : (solReal == null ? '\u2248 ' : '') + fmt(sol, 0) + ' kW'; if (solOn) act.push(190); const edlOn = edl === 1; if (edlOn) act.push(50);
+  // Solar: read from the solar power meter in the FBox, the same way as the generator meters.
+  const solRaw = v['solar.kw'], sol = solRaw == null ? null : Math.max(0, solRaw), solOn = sol != null && sol > 1; wire('pfl-solar', solOn, ' solar'); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : fmt(sol, 0) + ' kW'; if (solOn) act.push(190); const edlOn = edl === 1; if (edlOn) act.push(50);
+  if (s.solar) {
+    const id = s.solar.id, k = n => v[id + '.' + n], kwp = s.solar.kwp;
+    $(id + '-svg').setAttribute('class', 'solset' + (solOn ? ' on' : '')); $(id + '-svg').dataset.sky = sol != null && sol >= 5 ? 'sun' : sol != null && sol >= 1 ? 'cloud' : 'dark';
+    $(id + '-photo').closest('.panel').classList.toggle('live', solOn);
+    $(id + '-kw').textContent = fmt(sol, dp('kw'));
+    $(id + '-tag').textContent = sol == null ? 'No data' : sol >= 5 ? 'Producing' : sol >= 1 ? 'Low' : 'Not producing'; $(id + '-tag').className = 'tag' + (solOn ? ' run' : '');
+    const load = sol == null || !kwp ? null : Math.min(100, sol / kwp * 100);
+    $(id + '-barwrap').style.display = load == null ? 'none' : '';
+    if (load != null) $(id + '-bar').style.width = load + '%';
+    $(id + '-load').textContent = sol == null ? 'No reading from the solar meter' : !solOn ? 'Not producing power' : load != null ? Math.round(load) + '% of ' + fmt(kwp) + ' kWp' : '';
+    [1, 2, 3].forEach(p => { $(id + '-v' + p).textContent = fmt(k('v' + p), 0); $(id + '-i' + p).textContent = fmt(k('i' + p), 1); });
+    $(id + '-freq').textContent = fmt(k('freq'), 1); $(id + '-total').textContent = s.solarTotal ? fmt(s.solarTotal.kwh, 1) + ' kWh' : '--';
+    const pv = [1, 2, 3].map(p => k('v' + p)), pi = [1, 2, 3].map(p => k('i' + p)), kva = pv.every(x => x != null) && pi.every(x => x != null) ? pv.reduce((a, x, i) => a + x * pi[i], 0) / 1000 : null;
+    $(id + '-kva').textContent = solOn && kva != null ? fmt(kva, 1) : '--';
+    $(id + '-pf').textContent = solOn && kva > 1 ? fmt(Math.min(1, sol / kva), 2) : '--';
+  }
   // PLANT TOTAL = the AIN EBEL busbar: kW of every source added up. Solar adds kW only, so the kVAr comes from the generators alone: kVA = sqrt(kW^2 + kVAr^2).
   { const busKw = tot + (solOn ? sol : 0), genQ = totKva > tot ? Math.sqrt(totKva * totKva - tot * tot) : 0, busKva = Math.sqrt(busKw * busKw + genQ * genQ);
     $('totkw').textContent = fmt(busKw, 1); $('totkva').textContent = running || solOn ? fmt(busKva, 1) : '--'; $('totpf').textContent = busKva > 1 ? fmt(Math.min(1, busKw / busKva), 2) : '--'; }
