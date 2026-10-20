@@ -32,6 +32,9 @@
       "names": { "i1": "Amp1", "i2": "Amp2", "i3": "Amp3", "kw": "TOTAL KW" } }
   ],
 
+  "solar": { "id": "solar", "label": "SOLAR", "kwp": 50, "group": "SOLAR",
+    "names": { "v1": "SOLAR V1", "v2": "SOLAR V2", "v3": "SOLAR V3", "i1": "SOLAR A1", "i2": "SOLAR A2", "i3": "SOLAR A3", "freq": "SOLAR HZ", "kw": "SOLAR KW" } },
+
   "points": [
     { "key": "v1",    "name": "L1 - N", "decimals": 0, "div": 10 },
     { "key": "v2",    "name": "L2 - N", "decimals": 0, "div": 10 },
@@ -55,6 +58,7 @@
   "_notes": [
     "Names and groups match FBox Manager exactly (checked on the Al Dhour box).",
     "generators[].names overrides a point name for that generator (GEN 2 uses Amp1 and TOTAL KW).",
+    "solar: the new Al Dhour solar power meter, read like the generators (group SOLAR in FBox Manager, %MW80-87, one decimal like the generators).",
     "site.tankLitres: set the tank capacity to show the gauge and % (leave null until known).",
     "site.ratedKva: set the generator rating to show load % bars (leave null until known)."
   ]
