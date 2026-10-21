@@ -711,7 +711,7 @@ const server = http.createServer((req, res) => {
     const s = cfg.site;
     return res.end(JSON.stringify({
       site: { name: s.name, tankLitres: s.tankLitres || null, ratedKva: s.ratedKva || null, lowFuelHours: s.lowFuelHours ?? 12, details: s.details },
-      generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })), solar: SOLAR ? { id: SOLAR.id, label: SOLAR.label, kwp: SOLAR.kwp || null } : null,
+      generators: gens.map(({ id, label, ratedKva, flowMaxKw }) => ({ id, label, ratedKva: ratedKva || null, flowMaxKw: flowMaxKw || null })), solar: SOLAR ? { id: SOLAR.id, label: SOLAR.label, kwp: SOLAR.kwp || null } : null,
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
       online: onlineCount(), solarTotal: { kwh: +sol.kwh.toFixed(2), since: sol.since, kw: +solarKw(state.values || {}).toFixed(1) }, fuelToday: fuelToday(), alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)

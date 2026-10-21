@@ -27,8 +27,8 @@
   },
 
   "generators": [
-    { "id": "gen1", "label": "GENERATOR 1", "ratedKva": 350, "group": "GEN 1", "status": { "name": "GEN 1 STATUS", "group": "PWR STATUS" }, "names": {} },
-    { "id": "gen2", "label": "GENERATOR 2", "ratedKva": 160, "group": "GEN 2", "status": { "name": "GEN 2 STATUS", "group": "PWR STATUS" },
+    { "id": "gen1", "label": "GENERATOR 1", "ratedKva": 350, "flowMaxKw": 120, "group": "GEN 1", "status": { "name": "GEN 1 STATUS", "group": "PWR STATUS" }, "names": {} },
+    { "id": "gen2", "label": "GENERATOR 2", "ratedKva": 160, "flowMaxKw": 120, "group": "GEN 2", "status": { "name": "GEN 2 STATUS", "group": "PWR STATUS" },
       "names": { "i1": "Amp1", "i2": "Amp2", "i3": "Amp3", "kw": "TOTAL KW" } }
   ],
 
@@ -60,6 +60,7 @@
     "generators[].names overrides a point name for that generator (GEN 2 uses Amp1 and TOTAL KW).",
     "solar: the new Al Dhour solar power meter, read like the generators (group SOLAR in FBox Manager, %MW80-87, one decimal like the generators).",
     "site.tankLitres: set the tank capacity to show the gauge and % (leave null until known).",
-    "site.ratedKva: set the generator rating to show load % bars (leave null until known)."
+    "site.ratedKva: set the generator rating to show load % bars (leave null until known).",
+    "generators[].flowMaxKw / solar.kwp: kW at which the power flow line of that supply becomes a full line."
   ]
 }

@@ -139,6 +139,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
 @keyframes shake{50%{transform:translateY(.9px)}}
 .lamp{fill:#3a444b}.on .lamp{fill:var(--ok);filter:drop-shadow(0 0 4px var(--ok))}
 @media(prefers-reduced-motion:reduce){.on .fan,.on .smoke circle,.on .eng,.wire.live{animation:none}}
+.wire.live.load{animation:none}   /* supply lines (solar, generators) are moved by flowTick() from their own load */
 /* solar drawing: bright sun when producing (5 kW and more), cloudy below 5 kW, dark below 1 kW */
 .sky,.sun,.clouds,.night,.pvshine{transition:opacity 1.2s}
 .sky-cloud,.sky-dark,.clouds,.night{opacity:0}
@@ -502,7 +503,7 @@ async function refresh() {
     const on = st != null ? st === 1 : kw != null && kw > 1;
     if (on) { running++; const gi = s.generators.indexOf(g); if (GX[gi] != null) act.push(GX[gi]); } if (kw != null) tot += kw;
     $(g.id + '-svg').setAttribute('class', 'gset' + (on ? ' on' : '')); $(g.id + '-photo').closest('.panel').classList.toggle('live', on);
-    wire('pfl-' + g.id, on); $('pfb-' + g.id).setAttribute('class', 'node' + (on ? ' on' : ''));
+    wire('pfl-' + g.id, on, ' load'); setFlow('pfl-' + g.id, on ? kw : 0, g.flowMaxKw || (g.ratedKva ? g.ratedKva * 0.8 : 120)); $('pfb-' + g.id).setAttribute('class', 'node' + (on ? ' on' : ''));
     $('pf-' + g.id).textContent = !on ? 'STOPPED' : fmt(kw, 0) + ' kW';
     $(g.id + '-kw').textContent = fmt(kw, dp('kw'));
     $(g.id + '-tag').textContent = st == null && kw == null ? 'No data' : on ? 'Running' : 'Stopped';
@@ -532,7 +533,7 @@ async function refresh() {
   $('totpf').textContent = running && totKva > 1 ? fmt(Math.min(1, tot / totKva), 2) : '--';
   $('totkw').textContent = fmt(tot, 1);
   // Solar: read from the solar power meter in the FBox, the same way as the generator meters.
-  const solRaw = v['solar.kw'], sol = solRaw == null ? null : Math.max(0, solRaw), solOn = sol != null && sol > 1; wire('pfl-solar', solOn, ' solar'); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : fmt(sol, 0) + ' kW'; if (solOn) act.push(190); const edlOn = edl === 1; if (edlOn) act.push(50);
+  const solRaw = v['solar.kw'], sol = solRaw == null ? null : Math.max(0, solRaw), solOn = sol != null && sol > 1; wire('pfl-solar', solOn, ' solar load'); setFlow('pfl-solar', solOn ? sol : 0, (s.solar && s.solar.kwp) || 50); $('pfb-solar').setAttribute('class', 'node' + (solOn ? ' on' : '')); $('pf-solar').textContent = sol == null ? '-- kW' : fmt(sol, 0) + ' kW'; if (solOn) act.push(190); const edlOn = edl === 1; if (edlOn) act.push(50);
   if (s.solar) {
     const id = s.solar.id, k = n => v[id + '.' + n], kwp = s.solar.kwp;
     $(id + '-svg').setAttribute('class', 'solset' + (solOn ? ' on' : '')); $(id + '-svg').dataset.sky = sol != null && sol >= 5 ? 'sun' : sol != null && sol >= 1 ? 'cloud' : 'dark';
@@ -555,7 +556,7 @@ async function refresh() {
   const aL = act.filter(x => x < LX), aR = act.filter(x => x > LX), mono = running || solOn ? '' : ' mains';
   $('pfl-busL').setAttribute('d', 'M' + (aL.length ? Math.min(...aL) : LX) + ' 45H' + LX); $('pfl-busR').setAttribute('d', 'M' + (aR.length ? Math.max(...aR) : LX) + ' 45H' + LX);
   wire('pfl-busL', aL.length > 0, solOn && !edlOn ? ' solar' : mono); wire('pfl-busR', aR.length > 0, mono); wire('pfl-load', act.length > 0, solOn && (running || edlOn) ? ' mix' : solOn ? ' solar' : mono); $('pf-load').textContent = fmt(tot + (solOn ? sol : 0), 1) + ' kW';
-  const sd = solOn ? (16 / (8 + 72 * Math.min(sol, 50) / 50)).toFixed(3) + 's' : ''; ['pfl-solar', 'pfl-busL', 'pfl-load'].forEach(id => { const e = $(id); if (e) e.style.animationDuration = e.classList.contains('solar') ? sd : ''; });
+  const sd = solOn ? (16 / (8 + 72 * Math.min(sol, 50) / 50)).toFixed(3) + 's' : ''; ['pfl-busL', 'pfl-load'].forEach(id => { const e = $(id); if (e) e.style.animationDuration = e.classList.contains('solar') ? sd : ''; });
 
   $('alerts').innerHTML = (alerts.length ? alerts : [['okay', 'No alerts', 'Everything reported is within normal range.']])
     .map(a => `<div class="alert ${a[0]}"><b>${a[1]}</b> ${a[2]}</div>`).join('');
@@ -705,6 +706,29 @@ function drawTrends() {
   $('rangelbl').textContent = fdt(HD.from) + '  to  ' + fdt(HD.to) + (HD.since && HD.since > HD.from ? '   (history starts ' + fdt(HD.since) + ')' : '');
 }
 // Trends are hidden for now (the #trends block); to bring them back: show it and run  rangeBar(); loadHist(); setInterval(() => { if (!R.end) loadHist(); }, 30000);
+
+// ---- power flow of each supply (solar, generator 1, generator 2): the more load, the faster and closer the dots, a full line at its max kW ----
+// The look follows the load smoothly (no jumps): every frame it moves a little towards the latest reading.
+const FLOW = {};
+function setFlow(id, kw, max) { const f = FLOW[id] || (FLOW[id] = { r: 0, off: 0 }); f.target = Math.max(0, Math.min(1, (kw || 0) / (max || 1))); f.on = kw > 0; }
+let flowT = null;
+const flowStill = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function flowTick(t) {
+  const dt = flowT == null ? 0 : Math.min(0.1, (t - flowT) / 1000); flowT = t;
+  for (const [id, f] of Object.entries(FLOW)) {
+    const e = $(id); if (!e) continue;
+    if (!f.on) { f.r = 0; e.style.strokeDasharray = ''; e.style.strokeDashoffset = ''; e.style.filter = ''; continue; }
+    f.r += (f.target - f.r) * Math.min(1, dt * 1.5);                  // eases to the new load in about 2 seconds
+    const r = f.r, dash = 7 + 13 * r, gap = Math.max(0, 9 * Math.pow(1 - r, 1.3));   // low load: short dots far apart; max load: one full line
+    if (!flowStill) f.off = (f.off - (12 + 110 * r) * dt) % 1000;      // speed in px per second: slow at low load, fast at high load
+    e.style.strokeDasharray = gap < 0.4 ? 'none' : dash.toFixed(1) + ' ' + gap.toFixed(1);
+    e.style.strokeDashoffset = f.off.toFixed(1);
+    const c = e.classList.contains('solar') ? '#39ff14' : '#ffc21a';
+    e.style.filter = r > 0.15 ? `drop-shadow(0 0 ${(2 + 5 * r).toFixed(1)}px ${c})` : '';
+  }
+  requestAnimationFrame(flowTick);
+}
+requestAnimationFrame(flowTick);
 
 function setStatus(c, t) { $('status').className = 'status ' + c; $('statustext').textContent = t; }
 // outside temperature at Ain Ebel (free Open-Meteo service, no key), refreshed every 10 minutes
