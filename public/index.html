@@ -48,6 +48,7 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .big{font-family:"Share Tech Mono",monospace;color:var(--fuel);text-shadow:0 0 10px rgba(255,159,26,.45);font-size:54px;line-height:1;letter-spacing:.02em}
 .gens .big{color:#3ddc84;text-shadow:0 0 10px rgba(61,220,132,.4)}
 .rd{margin-top:14px}
+.gfuel{margin-top:14px;font-size:18px;table-layout:fixed}.gfuel th,.gfuel td{text-align:center!important;padding-left:2px;padding-right:2px}
 .lcd small{font-family:"Barlow Condensed";font-size:20px;color:var(--steel);margin-left:8px;letter-spacing:.06em;text-transform:uppercase}
 .sub{color:var(--steel);font-size:16px;margin-top:8px}
 .nofuel{color:var(--steel);font-size:16px;line-height:1.4;max-width:34ch}
@@ -390,6 +391,7 @@ function build(s) {
       <table class="rd"><tbody>
         ${[['freq', 'Frequency (Hz)', '#38c8e6'], ['hours', 'Engine hours', '#b388ff'], ['kva', 'kVA now', '#ff9f1c'], ['pf', 'Power factor', '#ff6fb5']].map(([k, l, c]) => `<tr><td><i class="ph" style="background:${c}"></i>${l}</td><td id="${g.id}-${k}">--</td></tr>`).join('')}
       </tbody></table>
+      <table class="gfuel"><thead><tr><th>L/H</th><th id="${g.id}-fmon-l">NOV</th><th>LM</th><th>TOTAL</th></tr></thead><tbody><tr><td id="${g.id}-flph">--</td><td id="${g.id}-fmon">--</td><td id="${g.id}-flm">--</td><td id="${g.id}-ftot">--</td></tr></tbody></table>
     </section>`).join('');
   GENS = s.generators;
   if (HD) drawTrends();
@@ -519,6 +521,12 @@ async function refresh() {
     totKva += on && kva ? kva : 0;
     $(g.id + '-kva').textContent = on && kva != null ? fmt(kva, 1) : '--';
     $(g.id + '-pf').textContent = on && kva > 1 && kw != null ? fmt(Math.min(1, kw / kva), 2) : '--';
+    { const GF = s.genFuel, f = GF && GF.gens && GF.gens[g.id], n1 = x => fmt(x, x < 100 ? 1 : 0);
+      if (GF) $(g.id + '-fmon-l').textContent = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][+GF.month.slice(5, 7) - 1];
+      $(g.id + '-flph').textContent = f ? (on ? fmt(f.lph, 1) : '0.0') : '--';
+      $(g.id + '-fmon').textContent = f ? n1(f.month) : '--';
+      $(g.id + '-flm').textContent = f && f.lastMonth != null ? n1(f.lastMonth) : '--';
+      $(g.id + '-ftot').textContent = f ? n1(f.total) : '--'; }
     const e = energy(H, g.id); totKwh += e.kwh;
     if (on) {
       const vs = [1, 2, 3].map(p => k('v' + p)).filter(x => x != null), is = [1, 2, 3].map(p => k('i' + p)).filter(x => x != null);
@@ -578,7 +586,7 @@ function renderHourly(s) {
   if (!f || !f.day) { P.style.display = 'none'; return; }
   P.style.display = '';
   const big = x => '<b style="color:var(--fuel);font-family:\'Share Tech Mono\',monospace;font-size:22px;font-weight:400">' + x + '</b>';
-  $('hourlysum').innerHTML = 'Today since ' + hm(f.since) + ': produced ' + big(fmt(f.kwh, 0) + ' kWh') + ', fuel used ' + big(fmt(f.total, 0) + ' L') + ', ' + big(lpk(f.total, f.kwh)) + ' L per kWh'
+  $('hourlysum').innerHTML = 'Today since ' + hm(f.since) + ': produced ' + big(fmt(f.kwh, 0) + ' kWh') + ', fuel used ' + big(fmt(f.total, f.total < 100 ? 1 : 0) + ' L') + ', ' + big(lpk(f.total, f.kwh)) + ' L per kWh'
     + (f.rate != null ? ' &nbsp;&middot; now ' + fmt(f.rate, 1) + ' L/h' : '') + (f.refuelled ? ' &nbsp;&middot; refuelled ' + fmt(f.refuelled, 0) + ' L (not counted as use)' : '')
     + '. Counted every minute, starts again at 00:00 (Lebanon time).';
   const rows = f.hours.slice().reverse().map(r => '<tr><td>' + hh(r.h) + (r.h === f.curHour ? ' <small style="color:var(--steel)">now</small>' : '') + '</td><td>' + fmt(r.kwh, 0) + '</td><td>' + fmt(r.used, 0) + '</td><td>' + lpk(r.used, r.kwh) + '</td></tr>');
