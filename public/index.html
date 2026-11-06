@@ -50,7 +50,7 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .rd{margin-top:14px}
 .dlbtns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.dlbtn{font-family:'Barlow Condensed';font-size:15px;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;color:#111;background:var(--yellow);padding:8px 16px;border-radius:3px;font-weight:700}.dlbtn:hover{filter:brightness(1.1)}.dlbtn{border:0;cursor:pointer}.dlbtns{align-items:center}.dlpick{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px}.dlpick label{font-family:'Barlow Condensed';font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;background:var(--lcd);border:1px solid var(--line);border-radius:4px;padding:6px 12px;min-width:84px}.dlpick input{accent-color:var(--yellow);width:16px;height:16px}.dlbtns label{font-family:'Barlow Condensed';font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--steel);display:flex;align-items:center;gap:8px}.dlbtns input{background:var(--lcd);color:var(--ink);border:1px solid var(--line);padding:7px 9px;font-family:'Share Tech Mono',monospace;font-size:16px;color-scheme:dark}
 .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}.dtile>span{display:block;font-family:"Barlow Condensed";font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--steel);margin-bottom:4px}.dtile .lcd{display:block;padding:7px 11px 5px}.dtile b{font-family:"Share Tech Mono",monospace;font-size:24px;font-weight:400}.dtile.wide{grid-column:1/-1}.dtile.wide .lcd{text-align:center;padding:9px 11px 7px}.dtile.wide b{font-size:30px}
-.gfuel{margin-top:14px;font-size:18px;table-layout:fixed}.gfuel th,.gfuel td{text-align:center!important;padding-left:2px;padding-right:2px}
+.gfuel{margin-top:14px;font-size:18px;table-layout:fixed}.ssave td:first-child{text-align:left!important;color:var(--steel)}.ssave th:first-child{text-align:left!important}.ssnote{font-size:12px;color:var(--steel);margin-top:6px;text-align:center}.gfuel th,.gfuel td{text-align:center!important;padding-left:2px;padding-right:2px}
 .lcd small{font-family:"Barlow Condensed";font-size:20px;color:var(--steel);margin-left:8px;letter-spacing:.06em;text-transform:uppercase}
 .sub{color:var(--steel);font-size:16px;margin-top:8px}
 .nofuel{color:var(--steel);font-size:16px;line-height:1.4;max-width:34ch}
@@ -273,7 +273,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
   </div>
 
   <section class="panel dlogp"><h2>Data logger</h2><div class="sub">One line per hour. Tick the readings you want, choose the dates, then view or download.</div>
-    <div class="dlpick" id="dlPick"><label><span>Gen1</span><input type="checkbox" value="g1kw,g1kwh,g1fuel" checked></label><label><span>Gen2</span><input type="checkbox" value="g2kw,g2kwh,g2fuel" checked></label><label><span>Solar</span><input type="checkbox" value="skw,skwh" checked></label><label><span>Total kWh</span><input type="checkbox" value="tkwh" checked></label><label><span>Outside temp</span><input type="checkbox" value="temp" checked></label><label><span>Refuel counter</span><input type="checkbox" value="counter" checked></label><label><span>Tank L</span><input type="checkbox" value="tank" checked></label></div>
+    <div class="dlpick" id="dlPick"><label><span>Gen1</span><input type="checkbox" value="g1kw,g1kwh,g1fuel" checked></label><label><span>Gen2</span><input type="checkbox" value="g2kw,g2kwh,g2fuel" checked></label><label><span>Solar</span><input type="checkbox" value="skw,skwh" checked></label><label><span>Fuel saved</span><input type="checkbox" value="sfs,sco2" checked></label><label><span>Total kWh</span><input type="checkbox" value="tkwh" checked></label><label><span>Outside temp</span><input type="checkbox" value="temp" checked></label><label><span>Refuel counter</span><input type="checkbox" value="counter" checked></label><label><span>Tank L</span><input type="checkbox" value="tank" checked></label></div>
     <div class="dlbtns"><label>From <input type="date" id="dlFrom"></label><label>To <input type="date" id="dlTo"></label><button class="dlbtn" id="dlView" type="button">View</button><button class="dlbtn" id="dlGo" type="button">Download Excel</button><span class="sub" id="dlMsg" style="margin:0"></span></div></section>
 
   <section class="panel" id="hourlyp" style="display:none"><h2>Fuel used per hour</h2><div class="sub" id="hourlysum"></div><div class="tscroll"><table class="stats" id="hourly"></table></div></section>
@@ -384,6 +384,10 @@ function build(s) {
       <table class="rd"><tbody>
         ${[['freq', 'Frequency (Hz)', '#38c8e6'], ['total', 'Production total', '#39ff14'], ['kva', 'kVA now', '#ff9f1c'], ['pf', 'Power factor', '#ff6fb5']].map(([k, l, c]) => `<tr><td><i class="ph" style="background:${c}"></i>${l}</td><td id="${sol.id}-${k}">--</td></tr>`).join('')}
       </tbody></table>
+      <table class="gfuel ssave"><thead><tr><th>Saved</th><th>Today</th><th id="${sol.id}-smon-l">Month</th><th>Total</th></tr></thead><tbody>
+        <tr><td>Fuel L</td><td id="${sol.id}-sl-d">--</td><td id="${sol.id}-sl-m">--</td><td id="${sol.id}-sl-t">--</td></tr>
+        <tr><td>CO₂</td><td id="${sol.id}-sc-d">--</td><td id="${sol.id}-sc-m">--</td><td id="${sol.id}-sc-t">--</td></tr>
+      </tbody></table><div class="ssnote">Estimate: 1 solar kWh saves 0.28 L diesel and 0.75 kg CO₂</div>
     </section>` : '') + s.generators.map((g, n) => `
     <section class="panel">
       <div class="ghead"><h2>${g.label}</h2><span class="tag" id="${g.id}-tag">--</span></div>
@@ -567,6 +571,11 @@ async function refresh() {
     $(id + '-load').textContent = sol == null ? 'No reading from the solar meter' : !solOn ? 'Not producing power' : load != null ? Math.round(load) + '% of ' + fmt(kwp) + ' kWp' : '';
     [1, 2, 3].forEach(p => { $(id + '-v' + p).textContent = fmt(k('v' + p), 0); $(id + '-i' + p).textContent = fmt(k('i' + p), 1); });
     $(id + '-freq').textContent = fmt(k('freq'), 1); $(id + '-total').textContent = s.solarTotal ? fmt(s.solarTotal.kwh, 1) + ' kWh' : '--';
+    { const SS = s.solarSave, L = x => fmt(x, x < 100 ? 1 : 0), C = kg => kg >= 1000 ? fmt(kg / 1000, kg < 1e5 ? 2 : 1) + ' t' : fmt(kg, kg < 100 ? 1 : 0) + ' kg';
+      if (SS) { $(id + '-smon-l').textContent = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][+SS.month.slice(5, 7) - 1];
+        $(id + '-sl-d').textContent = L(SS.today.litres); $(id + '-sl-m').textContent = L(SS.mon.litres); $(id + '-sl-t').textContent = L(SS.total.litres);
+        $(id + '-sc-d').textContent = C(SS.today.co2); $(id + '-sc-m').textContent = C(SS.mon.co2); $(id + '-sc-t').textContent = C(SS.total.co2);
+        const nt = document.querySelector('.ssnote'); if (nt) nt.textContent = 'Estimate: 1 solar kWh saves ' + SS.lpkwh + ' L diesel and ' + fmt(SS.lpkwh * SS.co2PerL, 2) + ' kg CO₂'; } }
     const pv = [1, 2, 3].map(p => k('v' + p)), pi = [1, 2, 3].map(p => k('i' + p)), kva = pv.every(x => x != null) && pi.every(x => x != null) ? pv.reduce((a, x, i) => a + x * pi[i], 0) / 1000 : null;
     $(id + '-kva').textContent = solOn && kva != null ? fmt(kva, 1) : '--';
     $(id + '-pf').textContent = solOn && kva > 1 ? fmt(Math.min(1, sol / kva), 2) : '--';
@@ -751,8 +760,8 @@ clkTick(); setInterval(clkTick, 1000);
   T.value = d(Date.now()); F.value = d(Date.now() - 6 * 864e5);
   let key = ''; try { key = sessionStorage.getItem('logKey') || ''; } catch (_) {}
   const cols = () => [...document.querySelectorAll('#dlPick input:checked')].map(b => b.value).join(',');
-  try { const sv = JSON.parse(localStorage.getItem('logCols') || 'null'); if (Array.isArray(sv)) document.querySelectorAll('#dlPick input').forEach(b => b.checked = sv.includes(b.value)); } catch (_) {}
-  document.querySelectorAll('#dlPick input').forEach(b => b.onchange = () => { try { localStorage.setItem('logCols', JSON.stringify([...document.querySelectorAll('#dlPick input:checked')].map(x => x.value))); } catch (_) {} });
+  try { const sv = JSON.parse(localStorage.getItem('logCols2') || 'null'); if (Array.isArray(sv)) document.querySelectorAll('#dlPick input').forEach(b => b.checked = sv.includes(b.value)); } catch (_) {}
+  document.querySelectorAll('#dlPick input').forEach(b => b.onchange = () => { try { localStorage.setItem('logCols2', JSON.stringify([...document.querySelectorAll('#dlPick input:checked')].map(x => x.value))); } catch (_) {} });
   $('dlView').onclick = () => {
     if (F.value && T.value && F.value > T.value) { M.textContent = 'The start date is after the end date.'; return; }
     M.textContent = ''; if (!cols()) { M.textContent = 'Tick at least one reading.'; return; } { const u = '/api/datalog.html?from=' + F.value + '&to=' + T.value + '&cols=' + cols() + (key ? '&key=' + encodeURIComponent(key) : ''); if (matchMedia('(pointer: coarse)').matches || matchMedia('(display-mode: standalone)').matches) location.href = u; else window.open(u, '_blank'); }
