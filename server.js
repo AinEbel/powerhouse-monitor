@@ -282,6 +282,39 @@ function trackToday(v) {
   cLast = { m, t: now, level: L, counter: c }; cKw = 0; cKwN = 0;
   fs.writeFile(CONS_FILE, JSON.stringify(cons), () => {});
 }
+// Fuel per generator, worked out from its own kW: 0.28 litres for every kWh it produces (GEN_LPKWH can change it).
+// Kept for every month (Lebanon time; a month starts again at 00:00 on the 1st, finished months are kept) and a total that is NEVER reset.
+const GF_FILE = path.join(__dirname, 'gen_fuel.json'), GEN_LPKWH = +E.GEN_LPKWH || 0.28;
+let gf = {}, gfLast = {}, gfSaved = 0;
+try { const j = JSON.parse(fs.readFileSync(GF_FILE, 'utf8')); if (j && typeof j === 'object') gf = j; } catch (_) {}
+function gfOf(id) { return gf[id] = gf[id] || { total: 0, months: {}, since: null }; }
+function trackGenFuel(v) {
+  const now = Date.now(), mk = bparts(now).day.slice(0, 7);
+  for (const g of gens) {
+    const kw = Math.max(0, +v[g.id + '.kw'] || 0), r = gfOf(g.id), l = gfLast[g.id];
+    if (!r.since) r.since = now;
+    if (l && now - l.t < 120e3) { const L = (kw + l.kw) / 2 * (now - l.t) / 3600e3 * GEN_LPKWH; r.total += L; r.months[mk] = (r.months[mk] || 0) + L; }
+    gfLast[g.id] = { t: now, kw };
+  }
+  if (now - gfSaved > 60e3) { gfSaved = now; fs.writeFile(GF_FILE, JSON.stringify(gf), () => {}); }
+}
+function genFuel(v) {
+  const [y, m] = bparts(Date.now()).day.split('-').map(Number), cur = y + '-' + String(m).padStart(2, '0'), prev = (m < 2 ? y - 1 : y) + '-' + String(m < 2 ? 12 : m - 1).padStart(2, '0');
+  return { lpkwh: GEN_LPKWH, month: cur, lastMonth: prev, gens: Object.fromEntries(gens.map(g => { const r = gfOf(g.id), kw = Math.max(0, +(v || {})[g.id + '.kw'] || 0);
+    return [g.id, { lph: +(kw * GEN_LPKWH).toFixed(1), month: +(r.months[cur] || 0).toFixed(1), lastMonth: r.months[prev] != null ? +r.months[prev].toFixed(1) : null, total: +r.total.toFixed(1), since: r.since }]; })) };
+}
+function mergeGenFuel(j) {                                  // restore / hand-over: keep the bigger value, so a count can never go down
+  if (!j || typeof j !== 'object') return 0;
+  let n = 0;
+  for (const [id, x] of Object.entries(j)) {
+    if (!x || !gens.some(g => g.id === id)) continue;
+    const r = gfOf(id); n++;
+    if (isFinite(x.total) && x.total >= 0) r.total = Math.max(r.total, +x.total);
+    for (const [k, v] of Object.entries(x.months || {})) if (/^\d{4}-\d\d$/.test(k) && isFinite(v) && v >= 0) r.months[k] = Math.max(r.months[k] || 0, +v);
+    if (x.since && (!r.since || x.since < r.since)) r.since = +x.since;
+  }
+  return n;
+}
 // KWH/L can be started again by hand (tap on the KWH/L box): only the ratio's starting point moves, kWh today and fuel today are never touched.
 // The starting point lives in the day's counters (c.rb), so it is saved and backed up with them and is dropped at 00:00 with the day.
 function ratioOf(c) { return c.rb ? { since: c.rb.ts, kwh: +((c.kwh || 0) - c.rb.kwh).toFixed(3), fuel: +(c.total - c.rb.fuel).toFixed(3) } : null; }
@@ -311,7 +344,7 @@ async function poll() {
       if (values[h] != null) values[h] += (values[g.id + '.min'] || 0) / 60 + (values[g.id + '.sec'] || 0) / 3600;
     });
     state = { conn, updated: Date.now(), values, error: null };
-    trackRefuel(values); trackFuelLevel(values); trackToday(values); checkFuelAlarm(values);
+    trackRefuel(values); trackFuelLevel(values); trackToday(values); trackGenFuel(values); checkFuelAlarm(values);
     const last = history[history.length - 1];
     if (!last || Date.now() - last.t >= 60000) {
       const pt = { t: Date.now(), fuel: values.fuel_l ?? null };
@@ -492,6 +525,7 @@ function mergeAll(j) {
   const out = {};
   if (!j || typeof j !== 'object') return out;
   if (j.cons || j.mon || j.sol) Object.assign(out, mergeCounters(j));
+  if (j.gf) out.genFuel = mergeGenFuel(j.gf);
   if (Array.isArray(j.refuels)) {
     const n = refuels.length;
     refuels = mergeList(refuels, j.refuels.filter(r => r && isFinite(r.litres) && r.litres > 0).map(r => ({ ...r, id: r.id ?? r.start })), r => r.id ?? r.start, 2000);
@@ -514,13 +548,13 @@ function mergeAll(j) {
     if (Array.isArray(j.mh.hist)) { const n = mhHist.length; mhHist = mergeList(mhHist, j.mh.hist, h => Math.floor(h.t / 60000), Infinity).filter(h => Date.now() - h.t < DAY); out.mh.hist = mhHist.length - n; }
   }
   // the counter files are written straight away, so a restart right after this keeps everything
-  fs.writeFileSync(CONS_FILE, JSON.stringify(cons)); fs.writeFileSync(MON_FILE, JSON.stringify(mon)); fs.writeFileSync(SOL_FILE, JSON.stringify(sol));
+  fs.writeFileSync(CONS_FILE, JSON.stringify(cons)); fs.writeFileSync(MON_FILE, JSON.stringify(mon)); fs.writeFileSync(SOL_FILE, JSON.stringify(sol)); fs.writeFileSync(GF_FILE, JSON.stringify(gf));
   fs.writeFileSync(MH_CONS_FILE, JSON.stringify(mcons)); fs.writeFileSync(MH_MON_FILE, JSON.stringify(mmon)); fs.writeFileSync(MH_SOL_FILE, JSON.stringify(msol));
   return out;
 }
 // Everything that is recorded, in one file (Al Dhour and Al Mahfara). The next version reads this from the running one before it goes online.
 function exportAll() {
-  return { v: 2, t: Date.now(), cons, mon, sol, refuels, fuelLog, history, alarm: alarmL, mh: { cons: mcons, mon: mmon, sol: msol, hist: mhHist } };
+  return { v: 2, t: Date.now(), cons, mon, sol, gf, refuels, fuelLog, history, alarm: alarmL, mh: { cons: mcons, mon: mmon, sol: msol, hist: mhHist } };
 }
 // Hand-over on Render: a new version is started next to the running one and only gets the visitors once it listens on its port.
 // So before listening, it copies all the recorded data from the running version through the public address.
@@ -646,7 +680,7 @@ const server = http.createServer((req, res) => {
   // It takes the old backup file or the full file from /api/export (counters, refuels, fuel log, charts).
   if (url === '/api/export') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="al-dhour-all-data.json"' }); return res.end(JSON.stringify(exportAll())); }
   if (url === '/api/handover') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify(handover)); }
-  if (url === '/api/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons, mon, sol })); }
+  if (url === '/api/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons, mon, sol, gf })); }
   if (url === '/api/restore' && req.method === 'POST') {
     let body = ''; req.on('data', d => { body += d; if (body.length > 3e7) req.destroy(); });
     req.on('end', () => {
@@ -714,7 +748,7 @@ const server = http.createServer((req, res) => {
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })), solar: SOLAR ? { id: SOLAR.id, label: SOLAR.label, kwp: SOLAR.kwp || null } : null,
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
-      online: onlineCount(), solarTotal: { kwh: +sol.kwh.toFixed(2), since: sol.since, kw: +solarKw(state.values || {}).toFixed(1) }, fuelToday: fuelToday(), alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
+      online: onlineCount(), solarTotal: { kwh: +sol.kwh.toFixed(2), since: sol.since, kw: +solarKw(state.values || {}).toFixed(1) }, fuelToday: fuelToday(), genFuel: genFuel(state.values), alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
     }));
   }
   const file = path.join(__dirname, 'public', url === '/' ? 'index.html' : url);
