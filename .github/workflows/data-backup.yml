@@ -17,6 +17,7 @@ jobs:
           get() { curl -fsS --retry 5 --retry-delay 10 --max-time 120 "$SITE$1" -o "$2"; }
           get /api/status warmup.json || sleep 60
           get /api/backup backup.json
+          get /api/export export.json || echo "no /api/export yet"
           get /api/mahfara/backup mahfara-backup.json
           get /api/refuels refuels.json
           get /api/fuellog.csv fuel-level-log.csv
