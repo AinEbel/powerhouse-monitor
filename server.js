@@ -325,7 +325,7 @@ const hourStart = t => Math.floor(t / 3600e3) * 3600e3;            // Lebanon is
 function dlogAdd(row) { const i = dlog.findIndex(r => r.t === row.t); if (i >= 0) return false; dlog.push(row); dlog.sort((a, b) => a.t - b.t); return true; }
 function dlogClose(a) {
   const n = a.n || 1, row = { t: a.h };
-  for (const g of gens) { row[g.id] = +(a.kw[g.id] / n).toFixed(1); row[g.id + 'L'] = +(a.kwh[g.id] * GEN_LPKWH).toFixed(1); }
+  for (const g of gens) { row[g.id] = +(a.kw[g.id] / n).toFixed(1); row[g.id + 'Kwh'] = +a.kwh[g.id].toFixed(1); row[g.id + 'L'] = +(a.kwh[g.id] * GEN_LPKWH).toFixed(1); }
   row.solar = +(a.kw.solar / n).toFixed(1); row.solarKwh = +a.kwh.solar.toFixed(1); row.counter = a.counter; row.tank = a.tank;
   dlogAdd(row); fs.writeFile(DLOG_FILE, JSON.stringify(dlog), () => {});
 }
@@ -368,34 +368,94 @@ function zip(files) {
   const cd = Buffer.concat(cen), e = Buffer.alloc(22); e.writeUInt32LE(0x06054b50, 0); e.writeUInt16LE(files.length, 8); e.writeUInt16LE(files.length, 10); e.writeUInt32LE(cd.length, 12); e.writeUInt32LE(off, 16);
   return Buffer.concat([...parts, cd, e]);
 }
-function xlsx(rows, widths) {
+function xlsx(rows, widths, o) {
+  o = o || {};
   const esc = x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const col = i => { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
-  const sheet = rows.map((r, ri) => '<row r="' + (ri + 1) + '">' + r.map((v, ci) => { const ref = col(ci) + (ri + 1), st = ri < 3 ? ' s="1"' : '';
-    return v == null || v === '' ? '' : typeof v === 'number' && isFinite(v) ? '<c r="' + ref + '"' + st + '><v>' + v + '</v></c>' : '<c r="' + ref + '" t="inlineStr"' + st + '><is><t>' + esc(v) + '</t></is></c>'; }).join('') + '</row>').join('');
+  const sheet = rows.map((r, ri) => '<row r="' + (ri + 1) + '">' + r.map((v, ci) => { const ref = col(ci) + (ri + 1), rn = ri + 1, st = rn === o.title ? ' s="3"' : (o.head || []).includes(rn) ? ' s="2"' : rn === o.total ? ' s="4"' : ri === 1 ? ' s="5"' : ' s="6"';
+    return (v == null || v === '') && !(o.head || []).includes(rn) ? '' : v == null || v === '' ? '<c r="' + ref + '"' + st + '/>' : typeof v === 'number' && isFinite(v) ? '<c r="' + ref + '"' + st + '><v>' + v + '</v></c>' : '<c r="' + ref + '" t="inlineStr"' + st + '><is><t>' + esc(v) + '</t></is></c>'; }).join('') + '</row>').join('');
   return zip([
     ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
     ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
     ['xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Hourly log" sheetId="1" r:id="rId1"/></sheets></workbook>'],
     ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
-    ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="2"><xf/><xf fontId="1" applyFont="1"/></cellXfs></styleSheet>'],
-    ['xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>' + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>' + sheet + '</sheetData></worksheet>']
+    ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="5"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="16"/><name val="Calibri"/></font><font><i/><sz val="10"/><color rgb="FF666666"/><name val="Calibri"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2B343B"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF3C4"/></patternFill></fill></fills><borders count="2"><border/><border><left style="thin"><color rgb="FFD0D6DB"/></left><right style="thin"><color rgb="FFD0D6DB"/></right><top style="thin"><color rgb="FFD0D6DB"/></top><bottom style="thin"><color rgb="FFD0D6DB"/></bottom></border></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="7"><xf/><xf fontId="1" applyFont="1"/><xf fontId="2" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf fontId="3" applyFont="1"/><xf fontId="1" fillId="3" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf fontId="4" applyFont="1"/><xf borderId="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf></cellXfs></styleSheet>'],
+    ['xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="4" topLeftCell="C5" activePane="bottomRight" state="frozen"/></sheetView></sheetViews><cols>' + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>' + sheet + '</sheetData>' + (o.merges && o.merges.length ? '<mergeCells count="' + o.merges.length + '">' + o.merges.map(m => '<mergeCell ref="' + m + '"/>').join('') + '</mergeCells>' : '') + '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>']
   ]);
 }
 // Set LOG_PASSWORD on Render to ask for a password before the Excel file is given (the live page stays open). Not set = open to everyone.
 const LOG_PASSWORD = E.LOG_PASSWORD || '';
 function beirutMidnight(d) { const u = Date.parse(d + 'T00:00:00Z'); for (const o of [2, 3, 4, 1]) { const t = u - o * 3600e3, b = bparts(t); if (b.day === d && b.hour === 0) return t; } return u - 2 * 3600e3; }
 const BZM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-function dataLogXlsx(from, to) {
-  const f = t => { const p = {}; for (const x of BZM.formatToParts(new Date(t))) p[x.type] = x.value; return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute; };   // Lebanon time (summer and winter)
-  const list = dlog.filter(r => r.t >= from && r.t <= to);
-  const head = ['Hour (Lebanon time)', 'Site'];
-  for (const g of gens) head.push(g.label + ' kW (avg)', g.label + ' fuel (L)');
-  head.push('Solar kW (avg)', 'Solar production (kWh)', 'Refuelling counter', 'Fuel in tank (L)', 'Tank capacity (L)');
-  const site = 'AL DHOUR POWER HOUSE', cap = cfg.site.tankLitres || null;
-  const rows = [[site + ' - hourly data log'], ['Generator fuel = generator kWh x ' + GEN_LPKWH + ' L/kWh. Rows marked * were rebuilt from the chart data (no counter reading).'], head];
-  for (const r of list) { const row = [f(r.t) + (r.backfill ? ' *' : ''), site]; for (const g of gens) row.push(r[g.id], r[g.id + 'L']); row.push(r.solar, r.solarKwh, r.counter, r.tank, cap); rows.push(row); }
-  return xlsx(rows, [20, 24, ...gens.flatMap(() => [20, 20]), 16, 22, 18, 16, 16]);
+// Columns of the data log. ?cols=a,b,c picks some of them (the page has a tick box for each); none given = all.
+function dataLogCols() {
+  const kwhOf = (r, id) => r[id + 'Kwh'] != null ? r[id + 'Kwh'] : r[id + 'L'] != null ? r[id + 'L'] / GEN_LPKWH : null;
+  const c = [];
+  gens.forEach((g, i) => { const n = i + 1, G = 'Gen' + n;
+    c.push({ k: 'g' + n + 'kw', grp: G, label: G + ' kW', get: r => r[g.id] },
+           { k: 'g' + n + 'kwh', grp: G, label: G + ' kWh', get: r => kwhOf(r, g.id), sum: true },
+           { k: 'g' + n + 'fuel', grp: G, label: G + ' FL', get: r => r[g.id + 'L'], sum: true }); });
+  c.push({ k: 'skw', grp: 'Solar', label: 'Solar kW', get: r => r.solar },
+         { k: 'skwh', grp: 'Solar', label: 'Solar kWh', get: r => r.solarKwh, sum: true },
+         { k: 'tkwh', grp: 'Total', label: 'Total kWh', get: r => { let t = 0, a = false; for (const g of gens) { const v = kwhOf(r, g.id); if (v != null) { t += v; a = true; } } if (r.solarKwh != null) { t += r.solarKwh; a = true; } return a ? t : null; }, sum: true },
+         { k: 'counter', grp: 'Tank', label: 'Refuel counter', get: r => r.counter },
+         { k: 'tank', grp: 'Tank', label: 'Tank L', get: r => r.tank });
+  return c;
+}
+function dataLogRows(from, to, pick) {
+  const f = t => { const p = {}; for (const x of BZM.formatToParts(new Date(t))) p[x.type] = x.value; return [p.year + '-' + p.month + '-' + p.day, p.hour + ':' + p.minute]; };   // Lebanon time (summer and winter)
+  const r1 = x => x == null || !isFinite(x) ? null : Math.round(x * 10) / 10, all = dataLogCols();
+  const cols = pick && pick.length ? all.filter(c => pick.includes(c.k)) : all, sum = {}, rows = [];
+  for (const r of dlog) if (r.t >= from && r.t <= to) {
+    const [d, h] = f(r.t);
+    rows.push({ d, h, star: !!r.backfill, v: cols.map(c => { const x = r1(c.get(r)); if (c.sum && x != null) sum[c.k] = (sum[c.k] || 0) + x; return x; }) });
+  }
+  return { site: 'AL DHOUR POWER HOUSE', cols, rows, total: cols.map(c => c.sum ? r1(sum[c.k] || 0) : null),
+    note: 'Generator fuel = generator kWh × ' + GEN_LPKWH + ' L/kWh. Hours marked * were rebuilt from the chart data (no refuelling counter reading).' };
+}
+function dataLogXlsx(from, to, pick, period) {
+  const d = dataLogRows(from, to, pick), cols = d.cols.length + 2;
+  const cap = cfg.site.tankLitres ? ' · Tank capacity ' + cfg.site.tankLitres.toLocaleString('en-US') + ' L' : '';
+  const rows = [[d.site], ['Hourly data log · ' + period + cap], [], ['Date', 'Hour', ...d.cols.map(c => c.label)],
+    ...d.rows.map(r => [r.d, r.h, ...r.v]), ['TOTAL', d.rows.length + ' h', ...d.total]];
+  return xlsx(rows, [12, 8, ...d.cols.map(c => Math.max(10, c.label.length + 3))], { title: 1, head: [4], total: rows.length, cols });
+}
+// The same log as a page to read in the browser: pick the readings to show, search a date or hour, Print / Save as PDF.
+function dataLogHtml(from, to, pick, period, qs) {
+  const d = dataLogRows(from, to, dataLogCols().map(c => c.k)), on = new Set(pick && pick.length ? pick : d.cols.map(c => c.k));
+  const esc = x => x == null ? '' : String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'), n = x => x == null ? '–' : typeof x === 'number' ? x.toLocaleString('en-US', { maximumFractionDigits: 1 }) : esc(x);
+  const groups = []; for (const c of d.cols) { const g = groups[groups.length - 1]; if (g && g.name === c.grp) g.cols.push(c); else groups.push({ name: c.grp, cols: [c] }); }
+  const cards = d.cols.filter(c => c.sum).map(c => `<div class="card" data-k="${c.k}"><span>${esc(c.label)}</span><b>${n(d.total[d.cols.indexOf(c)])}</b></div>`).join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(d.site)} - data log</title><style>
+*{box-sizing:border-box}body{font:14px/1.45 "Segoe UI",Arial,Helvetica,sans-serif;margin:0;color:#1d2328;background:#f4f6f8}
+header{background:#1d2328;color:#fff;padding:18px 24px;border-bottom:4px solid #ffc21a}header h1{margin:0;font-size:24px;letter-spacing:.06em}header p{margin:4px 0 0;color:#c7d0d6}
+main{padding:16px 24px}.cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}.card{background:#fff;border:1px solid #dde3e8;border-top:3px solid #ffc21a;border-radius:6px;padding:10px 14px;min-width:150px;text-align:center}
+.card span{display:block;font-size:11px;letter-spacing:.08em;color:#6b7a85;font-weight:700}.card b{display:block;font-size:22px}.card i{font-style:normal;font-size:12px;color:#6b7a85}
+.bar{display:flex;gap:10px 18px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid #dde3e8;border-radius:6px;padding:10px 14px;margin-bottom:12px}
+.bar input[type=search]{font-size:15px;padding:7px 10px;border:1px solid #b9c3ca;border-radius:4px;min-width:230px}.bar button{font-size:15px;padding:8px 16px;border:0;border-radius:4px;background:#ffc21a;font-weight:700;cursor:pointer;margin-left:auto}
+.picks{display:flex;flex-wrap:wrap;gap:6px 14px}.picks fieldset{border:0;margin:0;padding:0;display:flex;gap:8px;align-items:center}.picks legend{float:left;font-weight:700;font-size:12px;letter-spacing:.06em;margin-right:4px}.picks label{font-size:13px;white-space:nowrap;cursor:pointer}
+.wrap{overflow:auto;max-height:calc(100vh - 290px);background:#fff;border:1px solid #dde3e8;border-radius:6px}
+table{border-collapse:collapse;width:100%}th,td{padding:5px 10px;font-size:13px;text-align:center;white-space:nowrap;border-bottom:1px solid #e6eaee}
+thead th{background:#2b343b;color:#fff;font-weight:600;position:sticky;z-index:1}thead th{top:0;font-size:12.5px}
+th.g,td.g{border-left:2px solid #c9d1d7}tbody tr:nth-child(even) td{background:#f7f9fa}tbody tr:hover td{background:#fff6d6}td.d{font-weight:600}
+tfoot td{font-weight:700;background:#fff3c4;position:sticky;bottom:0;border-top:2px solid #ffc21a}.note{color:#6b7a85;font-size:12px;margin-top:8px}.off{display:none}
+@media print{body{background:#fff;font-size:9px}header{padding:6px 0;background:#fff;color:#000;border-bottom:2px solid #000}header p{color:#333}main{padding:6px 0}.bar{display:none}.wrap{max-height:none;overflow:visible;border:0}
+thead th,tfoot td{position:static}thead th{background:#ddd!important;color:#000}th,td{padding:2px 5px}.card{padding:4px 8px;min-width:0}.card b{font-size:13px}@page{size:A4 landscape;margin:8mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body><header><h1>${esc(d.site)}</h1><p>Hourly data log · ${esc(period)} · ${d.rows.length} hours${cfg.site.tankLitres ? ' · Tank capacity ' + cfg.site.tankLitres.toLocaleString('en-US') + ' L' : ''}</p></header><main>
+<div class="cards">${cards}</div>
+<div class="bar"><div class="picks">${groups.map(g => `<fieldset><legend>${esc(g.name)}</legend>${g.cols.map(c => `<label><input type="checkbox" data-k="${c.k}"${on.has(c.k) ? ' checked' : ''}> ${esc(c.label.replace(c.grp + ' ', ''))}</label>`).join('')}</fieldset>`).join('')}</div>
+<input type="search" id="q" placeholder="Search a date or hour, e.g. 2026-11-05 14:00"><span id="c"></span><button onclick="print()">Print / Save as PDF</button></div>
+<div class="wrap"><table><thead><tr><th>Date</th><th>Hour</th>${d.cols.map((c, i) => `<th data-k="${c.k}"${i === 0 || d.cols[i - 1].grp !== c.grp ? ' class="g"' : ''}>${esc(c.label)}</th>`).join('')}</tr></thead>
+<tbody id="b">${d.rows.map(r => `<tr><td class="d">${r.d}</td><td>${r.h}</td>${r.v.map((v, i) => `<td data-k="${d.cols[i].k}"${i === 0 || d.cols[i - 1].grp !== d.cols[i].grp ? ' class="g"' : ''}>${n(v)}</td>`).join('')}</tr>`).join('')}</tbody>
+<tfoot><tr><td>TOTAL</td><td>${d.rows.length} h</td>${d.total.map((v, i) => `<td data-k="${d.cols[i].k}"${i === 0 || d.cols[i - 1].grp !== d.cols[i].grp ? ' class="g"' : ''}>${v == null ? '' : n(v)}</td>`).join('')}</tr></tfoot></table></div>
+</main>
+<script>
+const boxes=[...document.querySelectorAll('.picks input')],rs=[...document.getElementById('b').rows],q=document.getElementById('q'),c=document.getElementById('c');
+function cols(){const on=new Set(boxes.filter(b=>b.checked).map(b=>b.dataset.k));document.querySelectorAll('[data-k]').forEach(e=>{if(e.tagName!=='INPUT')e.classList.toggle('off',!on.has(e.dataset.k));});
+}
+boxes.forEach(b=>b.onchange=cols);cols();
+q.oninput=()=>{const s=q.value.trim().toLowerCase();let k=0;for(const r of rs){const ok=!s||(r.cells[0].textContent+' '+r.cells[1].textContent).toLowerCase().includes(s);r.style.display=ok?'':'none';if(ok)k++;}c.textContent=s?k+' of '+rs.length+' hours':'';};
+</script></body></html>`;
 }
 // KWH/L can be started again by hand (tap on the KWH/L box): only the ratio's starting point moves, kWh today and fuel today are never touched.
 // The starting point lives in the day's counters (c.rb), so it is saved and backed up with them and is dropped at 00:00 with the day.
@@ -720,14 +780,16 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({ now: Date.now(), since: trackStart, level: fuelCur, total: fuelLog.length, list: list.slice(0, 300) }));
   }
-  if (url === '/api/datalog.xlsx') {       // hourly data log as an Excel file; ?from=YYYY-MM-DD&to=YYYY-MM-DD (Lebanon days, both included)
+  if (url === '/api/datalog.xlsx' || url === '/api/datalog.html') {       // hourly data log as an Excel file; ?from=YYYY-MM-DD&to=YYYY-MM-DD (Lebanon days, both included)
     const q = new URL(req.url, 'http://x').searchParams, H = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
     if (LOG_PASSWORD && (req.headers['x-log-key'] || q.get('key') || '') !== LOG_PASSWORD) { res.writeHead(401, H); return res.end(JSON.stringify({ error: 'password' })); }
     const day = /^\d{4}-\d\d-\d\d$/, f = q.get('from'), t = q.get('to');
     const from = f && day.test(f) ? beirutMidnight(f) : 0, to = t && day.test(t) ? beirutMidnight(t) + DAY - 1 : Date.now();
+    const pick = (q.get('cols') || '').split(',').filter(Boolean), period = (f ? 'From ' + f : 'From the start') + (t ? ' to ' + t : ' to now');
+    if (url.endsWith('.html')) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(dataLogHtml(from, to, pick, period)); }
     const name = 'al-dhour-hourly-log' + (f ? '-' + f : '') + (t ? '-to-' + t : '') + '.xlsx';
     res.writeHead(200, { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="' + name + '"' });
-    return res.end(dataLogXlsx(from, to));
+    return res.end(dataLogXlsx(from, to, pick, period));
   }
   if (url === '/api/refuels' || url === '/api/refuels.csv') {
     const list = [...refuels].reverse();
