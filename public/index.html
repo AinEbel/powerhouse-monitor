@@ -273,7 +273,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
   </div>
 
   <section class="panel dlogp"><h2>Data logger</h2><div class="sub">One line per hour: Generator 1 and 2 kW and fuel, solar kW and kWh, refuelling counter, fuel in tank and tank capacity.</div>
-    <div class="dlbtns"><label>From <input type="date" id="dlFrom"></label><label>To <input type="date" id="dlTo"></label><button class="dlbtn" id="dlGo" type="button">Download Excel</button><span class="sub" id="dlMsg" style="margin:0"></span></div></section>
+    <div class="dlbtns"><label>From <input type="date" id="dlFrom"></label><label>To <input type="date" id="dlTo"></label><button class="dlbtn" id="dlView" type="button">View</button><button class="dlbtn" id="dlGo" type="button">Download Excel</button><span class="sub" id="dlMsg" style="margin:0"></span></div></section>
 
   <section class="panel" id="hourlyp" style="display:none"><h2>Fuel used per hour</h2><div class="sub" id="hourlysum"></div><div class="tscroll"><table class="stats" id="hourly"></table></div></section>
 
@@ -749,6 +749,10 @@ clkTick(); setInterval(clkTick, 1000);
   if (!F) return;
   T.value = d(Date.now()); F.value = d(Date.now() - 6 * 864e5);
   let key = ''; try { key = sessionStorage.getItem('logKey') || ''; } catch (_) {}
+  $('dlView').onclick = () => {
+    if (F.value && T.value && F.value > T.value) { M.textContent = 'The start date is after the end date.'; return; }
+    M.textContent = ''; window.open('/api/datalog.html?from=' + F.value + '&to=' + T.value + (key ? '&key=' + encodeURIComponent(key) : ''), '_blank');
+  };
   $('dlGo').onclick = async () => {
     if (F.value && T.value && F.value > T.value) { M.textContent = 'The start date is after the end date.'; return; }
     M.textContent = 'Preparing...';

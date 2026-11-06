@@ -386,16 +386,32 @@ function xlsx(rows, widths) {
 const LOG_PASSWORD = E.LOG_PASSWORD || '';
 function beirutMidnight(d) { const u = Date.parse(d + 'T00:00:00Z'); for (const o of [2, 3, 4, 1]) { const t = u - o * 3600e3, b = bparts(t); if (b.day === d && b.hour === 0) return t; } return u - 2 * 3600e3; }
 const BZM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-function dataLogXlsx(from, to) {
+function dataLogRows(from, to) {
   const f = t => { const p = {}; for (const x of BZM.formatToParts(new Date(t))) p[x.type] = x.value; return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute; };   // Lebanon time (summer and winter)
-  const list = dlog.filter(r => r.t >= from && r.t <= to);
   const head = ['Hour (Lebanon time)', 'Site'];
   for (const g of gens) head.push(g.label + ' kW (avg)', g.label + ' fuel (L)');
   head.push('Solar kW (avg)', 'Solar production (kWh)', 'Refuelling counter', 'Fuel in tank (L)', 'Tank capacity (L)');
-  const site = 'AL DHOUR POWER HOUSE', cap = cfg.site.tankLitres || null;
-  const rows = [[site + ' - hourly data log'], ['Generator fuel = generator kWh x ' + GEN_LPKWH + ' L/kWh. Rows marked * were rebuilt from the chart data (no counter reading).'], head];
-  for (const r of list) { const row = [f(r.t) + (r.backfill ? ' *' : ''), site]; for (const g of gens) row.push(r[g.id], r[g.id + 'L']); row.push(r.solar, r.solarKwh, r.counter, r.tank, cap); rows.push(row); }
-  return xlsx(rows, [20, 24, ...gens.flatMap(() => [20, 20]), 16, 22, 18, 16, 16]);
+  const site = 'AL DHOUR POWER HOUSE', cap = cfg.site.tankLitres || null, rows = [];
+  for (const r of dlog) if (r.t >= from && r.t <= to) { const row = [f(r.t) + (r.backfill ? ' *' : ''), site]; for (const g of gens) row.push(r[g.id], r[g.id + 'L']); row.push(r.solar, r.solarKwh, r.counter, r.tank, cap); rows.push(row); }
+  return { site, head, rows, note: 'Generator fuel = generator kWh x ' + GEN_LPKWH + ' L/kWh. Rows marked * were rebuilt from the chart data (no counter reading).' };
+}
+function dataLogXlsx(from, to) {
+  const d = dataLogRows(from, to);
+  return xlsx([[d.site + ' - hourly data log'], [d.note], d.head, ...d.rows], [20, 24, ...gens.flatMap(() => [20, 20]), 16, 22, 18, 16, 16]);
+}
+// The same log as a page to read in the browser: search box, and Print / Save as PDF.
+function dataLogHtml(from, to, title) {
+  const d = dataLogRows(from, to), esc = x => x == null ? '' : String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;'), n = x => x == null ? '' : typeof x === 'number' ? x.toLocaleString('en-US') : esc(x);
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>
+body{font:14px/1.4 Arial,Helvetica,sans-serif;margin:16px;color:#111;background:#fff}h1{font-size:20px;margin:0 0 4px}p{margin:0 0 10px;color:#555}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0;position:sticky;top:0;background:#fff;padding:6px 0}
+input{font-size:15px;padding:7px 10px;border:1px solid #aaa;border-radius:4px;min-width:240px}button{font-size:15px;padding:7px 14px;border:0;border-radius:4px;background:#ffc21a;font-weight:700;cursor:pointer}
+.wrap{overflow:auto;max-height:calc(100vh - 140px);border:1px solid #ccc}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 7px;text-align:right;white-space:nowrap}th{background:#f1f1f1;position:sticky;top:0;z-index:1}td:first-child,td:nth-child(2),th:first-child,th:nth-child(2){text-align:left}tr:nth-child(even) td{background:#fafafa}
+@media print{.bar{display:none}body{margin:0;font-size:10px}th{position:static}.wrap{max-height:none;overflow:visible;border:0}@page{size:A4 landscape;margin:10mm}}
+</style></head><body><h1>${esc(d.site)} - hourly data log</h1><p>${esc(title)} · ${d.rows.length} hours. ${esc(d.note)}</p>
+<div class="bar"><input id="q" placeholder="Search a date or time, e.g. 2026-11-05 14:00" autofocus><span id="c"></span><button onclick="print()">Print / Save as PDF</button></div>
+<div class="wrap"><table><thead><tr>${d.head.map(h => '<th>' + esc(h) + '</th>').join('')}</tr></thead><tbody id="b">${d.rows.map(r => '<tr>' + r.map(v => '<td>' + n(v) + '</td>').join('') + '</tr>').join('')}</tbody></table></div>
+<script>const q=document.getElementById('q'),rs=[...document.getElementById('b').rows],c=document.getElementById('c');q.oninput=()=>{const s=q.value.trim().toLowerCase();let k=0;for(const r of rs){const ok=!s||r.textContent.toLowerCase().includes(s);r.style.display=ok?'':'none';if(ok)k++;}c.textContent=s?k+' of '+rs.length+' hours':'';};</script></body></html>`;
 }
 // KWH/L can be started again by hand (tap on the KWH/L box): only the ratio's starting point moves, kWh today and fuel today are never touched.
 // The starting point lives in the day's counters (c.rb), so it is saved and backed up with them and is dropped at 00:00 with the day.
@@ -720,11 +736,12 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({ now: Date.now(), since: trackStart, level: fuelCur, total: fuelLog.length, list: list.slice(0, 300) }));
   }
-  if (url === '/api/datalog.xlsx') {       // hourly data log as an Excel file; ?from=YYYY-MM-DD&to=YYYY-MM-DD (Lebanon days, both included)
+  if (url === '/api/datalog.xlsx' || url === '/api/datalog.html') {       // hourly data log as an Excel file; ?from=YYYY-MM-DD&to=YYYY-MM-DD (Lebanon days, both included)
     const q = new URL(req.url, 'http://x').searchParams, H = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
     if (LOG_PASSWORD && (req.headers['x-log-key'] || q.get('key') || '') !== LOG_PASSWORD) { res.writeHead(401, H); return res.end(JSON.stringify({ error: 'password' })); }
     const day = /^\d{4}-\d\d-\d\d$/, f = q.get('from'), t = q.get('to');
     const from = f && day.test(f) ? beirutMidnight(f) : 0, to = t && day.test(t) ? beirutMidnight(t) + DAY - 1 : Date.now();
+    if (url.endsWith('.html')) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(dataLogHtml(from, to, (f ? 'From ' + f : 'From the start') + (t ? ' to ' + t : ' to now'))); }
     const name = 'al-dhour-hourly-log' + (f ? '-' + f : '') + (t ? '-to-' + t : '') + '.xlsx';
     res.writeHead(200, { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="' + name + '"' });
     return res.end(dataLogXlsx(from, to));
