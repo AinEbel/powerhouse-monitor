@@ -273,7 +273,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
   </div>
 
   <section class="panel dlogp"><h2>Data logger</h2><div class="sub">One line per hour. Tick the readings you want, choose the dates, then view or download.</div>
-    <div class="dlpick" id="dlPick"><label><span>Gen1</span><input type="checkbox" value="g1kw,g1kwh,g1fuel" checked></label><label><span>Gen2</span><input type="checkbox" value="g2kw,g2kwh,g2fuel" checked></label><label><span>Solar</span><input type="checkbox" value="skw,skwh" checked></label><label><span>Total kWh</span><input type="checkbox" value="tkwh" checked></label><label><span>Outside temp</span><input type="checkbox" value="temp" checked></label><label><span>Refuel counter</span><input type="checkbox" value="counter" checked></label><label><span>Tank L</span><input type="checkbox" value="tank" checked></label></div>
+    <div class="dlpick" id="dlPick"><label><span>Gen1</span><input type="checkbox" value="g1kw,g1kwh,g1fuel" checked></label><label><span>Gen2</span><input type="checkbox" value="g2kw,g2kwh,g2fuel" checked></label><label><span>Solar</span><input type="checkbox" value="skw,skwh" checked></label><label><span>Fuel saved</span><input type="checkbox" value="sfs,sco2" checked></label><label><span>Total kWh</span><input type="checkbox" value="tkwh" checked></label><label><span>Outside temp</span><input type="checkbox" value="temp" checked></label><label><span>Refuel counter</span><input type="checkbox" value="counter" checked></label><label><span>Tank L</span><input type="checkbox" value="tank" checked></label></div>
     <div class="dlbtns"><label>From <input type="date" id="dlFrom"></label><label>To <input type="date" id="dlTo"></label><button class="dlbtn" id="dlView" type="button">View</button><button class="dlbtn" id="dlGo" type="button">Download Excel</button><span class="sub" id="dlMsg" style="margin:0"></span></div></section>
 
   <section class="panel" id="hourlyp" style="display:none"><h2>Fuel used per hour</h2><div class="sub" id="hourlysum"></div><div class="tscroll"><table class="stats" id="hourly"></table></div></section>
@@ -760,8 +760,8 @@ clkTick(); setInterval(clkTick, 1000);
   T.value = d(Date.now()); F.value = d(Date.now() - 6 * 864e5);
   let key = ''; try { key = sessionStorage.getItem('logKey') || ''; } catch (_) {}
   const cols = () => [...document.querySelectorAll('#dlPick input:checked')].map(b => b.value).join(',');
-  try { const sv = JSON.parse(localStorage.getItem('logCols') || 'null'); if (Array.isArray(sv)) document.querySelectorAll('#dlPick input').forEach(b => b.checked = sv.includes(b.value)); } catch (_) {}
-  document.querySelectorAll('#dlPick input').forEach(b => b.onchange = () => { try { localStorage.setItem('logCols', JSON.stringify([...document.querySelectorAll('#dlPick input:checked')].map(x => x.value))); } catch (_) {} });
+  try { const sv = JSON.parse(localStorage.getItem('logCols2') || 'null'); if (Array.isArray(sv)) document.querySelectorAll('#dlPick input').forEach(b => b.checked = sv.includes(b.value)); } catch (_) {}
+  document.querySelectorAll('#dlPick input').forEach(b => b.onchange = () => { try { localStorage.setItem('logCols2', JSON.stringify([...document.querySelectorAll('#dlPick input:checked')].map(x => x.value))); } catch (_) {} });
   $('dlView').onclick = () => {
     if (F.value && T.value && F.value > T.value) { M.textContent = 'The start date is after the end date.'; return; }
     M.textContent = ''; if (!cols()) { M.textContent = 'Tick at least one reading.'; return; } window.open('/api/datalog.html?from=' + F.value + '&to=' + T.value + '&cols=' + cols() + (key ? '&key=' + encodeURIComponent(key) : ''), '_blank');

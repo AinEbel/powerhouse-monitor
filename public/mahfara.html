@@ -48,7 +48,7 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .big{font-family:"Share Tech Mono",monospace;color:var(--fuel);text-shadow:0 0 10px rgba(255,159,26,.45);font-size:54px;line-height:1;letter-spacing:.02em}
 .gens .big{color:#3ddc84;text-shadow:0 0 10px rgba(61,220,132,.4)}
 .rd{margin-top:14px}
-.gfuel{margin-top:14px;font-size:18px;table-layout:fixed}.gfuel th,.gfuel td{text-align:center!important;padding-left:2px;padding-right:2px}
+.gfuel{margin-top:14px;font-size:18px;table-layout:fixed}.ssave td:first-child{text-align:left!important;color:var(--steel)}.ssave th:first-child{text-align:left!important}.ssnote{font-size:12px;color:var(--steel);margin-top:6px;text-align:center}.gfuel th,.gfuel td{text-align:center!important;padding-left:2px;padding-right:2px}
 .dlbtns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.dlbtn{font-family:'Barlow Condensed';font-size:15px;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;color:#111;background:var(--yellow);padding:8px 16px;border-radius:3px;font-weight:700}.dlbtn:hover{filter:brightness(1.1)}.dlbtn{border:0;cursor:pointer}.dlbtns{align-items:center}.dlpick{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px}.dlpick label{font-family:'Barlow Condensed';font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;background:var(--lcd);border:1px solid var(--line);border-radius:4px;padding:6px 12px;min-width:84px}.dlpick input{accent-color:var(--yellow);width:16px;height:16px}.dlbtns label{font-family:'Barlow Condensed';font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--steel);display:flex;align-items:center;gap:8px}.dlbtns input{background:var(--lcd);color:var(--ink);border:1px solid var(--line);padding:7px 9px;font-family:'Share Tech Mono',monospace;font-size:16px;color-scheme:dark}
 .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}.dtile>span{display:block;font-family:"Barlow Condensed";font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--steel);margin-bottom:4px}.dtile .lcd{display:block;padding:7px 11px 5px}.dtile b{font-family:"Share Tech Mono",monospace;font-size:24px;font-weight:400}.dtile.wide{grid-column:1/-1}.dtile.wide .lcd{text-align:center;padding:9px 11px 7px}.dtile.wide b{font-size:30px}
 .lcd small{font-family:"Barlow Condensed";font-size:20px;color:var(--steel);margin-left:8px;letter-spacing:.06em;text-transform:uppercase}
@@ -262,7 +262,7 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
   </div>
 
   <section class="panel dlogp"><h2>Data logger</h2><div class="sub">One line per hour. Tick the readings you want, choose the dates, then view or download.</div>
-    <div class="dlpick" id="dlPick"><label><span>Gen1</span><input type="checkbox" value="g1kw,g1kwh,g1fuel" checked></label><label><span>Gen2</span><input type="checkbox" value="g2kw,g2kwh,g2fuel" checked></label><label><span>Solar</span><input type="checkbox" value="skw,skwh" checked></label><label><span>Total kWh</span><input type="checkbox" value="tkwh" checked></label><label><span>Outside temp</span><input type="checkbox" value="temp" checked></label><label><span>Tank L</span><input type="checkbox" value="tank" checked></label></div>
+    <div class="dlpick" id="dlPick"><label><span>Gen1</span><input type="checkbox" value="g1kw,g1kwh,g1fuel" checked></label><label><span>Gen2</span><input type="checkbox" value="g2kw,g2kwh,g2fuel" checked></label><label><span>Solar</span><input type="checkbox" value="skw,skwh" checked></label><label><span>Fuel saved</span><input type="checkbox" value="sfs,sco2" checked></label><label><span>Total kWh</span><input type="checkbox" value="tkwh" checked></label><label><span>Outside temp</span><input type="checkbox" value="temp" checked></label><label><span>Tank L</span><input type="checkbox" value="tank" checked></label></div>
     <div class="dlbtns"><label>From <input type="date" id="dlFrom"></label><label>To <input type="date" id="dlTo"></label><button class="dlbtn" id="dlView" type="button">View</button><button class="dlbtn" id="dlGo" type="button">Download Excel</button><span class="sub" id="dlMsg" style="margin:0"></span></div></section>
 
   <section class="panel" id="hourlyp" style="display:none"><h2>Fuel used per hour</h2><div class="sub" id="hourlysum"></div><div class="tscroll"><table class="stats" id="hourly"></table></div></section>
@@ -406,7 +406,7 @@ const STUB = () => ({
 });
 async function refresh() {
   let s;
-  try { s = STUB(); try { const r = await fetch('/api/mahfara/status?x=' + Date.now(), { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.ok) { s.values = j.values || {}; s.conn = j.conn; s.error = j.error; s.updated = j.updated; s.now = j.now; s.history = j.history || []; if (j.fuelToday) s.fuelToday = j.fuelToday; if (j.solarTotal) s.solarTotal = j.solarTotal; if (j.genFuel) s.genFuel = j.genFuel; s.demo = false; s.pollSeconds = 20; s.site.details.Status = 'Connected'; } } } catch (_) {} }
+  try { s = STUB(); try { const r = await fetch('/api/mahfara/status?x=' + Date.now(), { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.ok) { s.values = j.values || {}; s.conn = j.conn; s.error = j.error; s.updated = j.updated; s.now = j.now; s.history = j.history || []; if (j.fuelToday) s.fuelToday = j.fuelToday; if (j.solarTotal) s.solarTotal = j.solarTotal; if (j.genFuel) s.genFuel = j.genFuel; if (j.solarSave) s.solarSave = j.solarSave; s.demo = false; s.pollSeconds = 20; s.site.details.Status = 'Connected'; } } } catch (_) {} }
   catch (e) { setStatus('error', 'Cannot reach the monitor server'); return; }
   if (!built) build(s);
   document.title = s.site.name + ' monitor'; $('name').textContent = s.site.name;
@@ -445,13 +445,19 @@ async function refresh() {
     ? `<div class="nofuel">No fuel reading. Check that DIESEL (LITERS) is in the FUEL TANK group.</div>`
     : (() => { const ft = s.fuelToday, st = s.solarTotal;
         const tile = (l, val, c, wide) => `<div class="dtile${wide ? ' wide' : ''}"><span>${l}</span><div class="lcd"><b style="color:${c}">${val}</b></div></div>`;
-        return `<div class="dgrid">` +
+        return `<div><div class="dgrid">` +
           tile('Litres', fmt(L, dp('fuel_l')) + ' L', low ? 'var(--low)' : 'var(--fuel)') +
           tile('Counter', fmt(v.fuel_counter, dp('fuel_counter')), 'var(--fuel)') +
           tile('kWh production today', ft && ft.day ? fmt(ft.kwh, 0) + ' kWh' : '--', 'var(--fuel)') +
           tile('Solar production total', st ? fmt(st.kwh, 1) + ' kWh' : '--', '#39ff14') +
           tile(fm ? 'Monthly kWh ' + mn : 'Monthly kWh', fm ? fmt(fm.kwh, 0) + ' kWh' : '--', 'var(--fuel)', true) +
-          `</div>`; })());
+          `</div>` + (() => { const SS = s.solarSave; if (!SS) return '';
+            const Lf = x => fmt(x, x < 100 ? 1 : 0), C = kg => kg >= 1000 ? fmt(kg / 1000, kg < 1e5 ? 2 : 1) + ' t' : fmt(kg, kg < 100 ? 1 : 0) + ' kg';
+            const M = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][+SS.month.slice(5, 7) - 1];
+            return `<table class="gfuel ssave"><thead><tr><th>Solar saved</th><th>Today</th><th>${M}</th><th>Total</th></tr></thead><tbody>` +
+              `<tr><td>Fuel L</td><td>${Lf(SS.today.litres)}</td><td>${Lf(SS.mon.litres)}</td><td>${Lf(SS.total.litres)}</td></tr>` +
+              `<tr><td>CO₂</td><td>${C(SS.today.co2)}</td><td>${C(SS.mon.co2)}</td><td>${C(SS.total.co2)}</td></tr></tbody></table>` +
+              `<div class="ssnote">Estimate: 1 solar kWh saves ${SS.lpkwh} L diesel and ${fmt(SS.lpkwh * SS.co2PerL, 2)} kg CO₂</div>`; })() + `</div>`; })());
   renderHourly(s);
   if (hl != null && hl < s.site.lowFuelHours) alerts.push(['bad', 'Low fuel', 'About ' + fmt(hl, 1) + ' hours left at the current use.']);
   else if (pct != null && pct < 15) alerts.push(['bad', 'Low fuel', fmt(pct, 0) + '% left.']);
@@ -690,8 +696,8 @@ clkTick(); setInterval(clkTick, 1000);
   T.value = d(Date.now()); F.value = d(Date.now() - 6 * 864e5);
   let key = ''; try { key = sessionStorage.getItem('logKey') || ''; } catch (_) {}
   const cols = () => [...document.querySelectorAll('#dlPick input:checked')].map(b => b.value).join(',');
-  try { const sv = JSON.parse(localStorage.getItem('mhLogCols') || 'null'); if (Array.isArray(sv)) document.querySelectorAll('#dlPick input').forEach(b => b.checked = sv.includes(b.value)); } catch (_) {}
-  document.querySelectorAll('#dlPick input').forEach(b => b.onchange = () => { try { localStorage.setItem('mhLogCols', JSON.stringify([...document.querySelectorAll('#dlPick input:checked')].map(x => x.value))); } catch (_) {} });
+  try { const sv = JSON.parse(localStorage.getItem('mhLogCols2') || 'null'); if (Array.isArray(sv)) document.querySelectorAll('#dlPick input').forEach(b => b.checked = sv.includes(b.value)); } catch (_) {}
+  document.querySelectorAll('#dlPick input').forEach(b => b.onchange = () => { try { localStorage.setItem('mhLogCols2', JSON.stringify([...document.querySelectorAll('#dlPick input:checked')].map(x => x.value))); } catch (_) {} });
   $('dlView').onclick = () => {
     if (F.value && T.value && F.value > T.value) { M.textContent = 'The start date is after the end date.'; return; }
     M.textContent = ''; if (!cols()) { M.textContent = 'Tick at least one reading.'; return; } window.open('/api/mahfara/datalog.html?from=' + F.value + '&to=' + T.value + '&cols=' + cols() + (key ? '&key=' + encodeURIComponent(key) : ''), '_blank');

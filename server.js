@@ -331,15 +331,15 @@ function mhGenFuel(v) {
   return { lpkwh: GEN_LPKWH, month: cur, lastMonth: prev, gens: Object.fromEntries(MH_GF.map(g => { const r = mgfOf(g.id), kw = Math.max(0, +(v || {})[g.key + '.kw'] || 0);
     return [g.key, { lph: +(kw * GEN_LPKWH).toFixed(1), month: +(r.months[cur] || 0).toFixed(1), lastMonth: r.months[prev] != null ? +r.months[prev].toFixed(1) : null, total: +r.total.toFixed(1), since: r.since }]; })) };
 }
-// Estimated savings from the solar (Al Dhour): every solar kWh is a kWh the generators did not have to make.
+// Estimated savings from the solar (each site from its own counters): every solar kWh is a kWh the generators did not have to make.
 // Fuel saved = solar kWh x GEN_LPKWH (0.28 L/kWh, the same rate as the generator fuel); CO2 saved = litres x 2.68 kg (burning 1 L of diesel).
 // Read only from the solar counters already recorded; nothing new is stored.
 const CO2_KG_PER_L = +E.CO2_KG_PER_L || 2.68;
-function solarSave() {
+function solarSave(daily = mon.solar, total = sol.kwh) {
   const day = bparts(Date.now()).day, mk = day.slice(0, 7);
-  let month = 0; for (const [k, v] of Object.entries(mon.solar || {})) if (k.startsWith(mk)) month += v;
+  let month = 0; for (const [k, v] of Object.entries(daily || {})) if (k.startsWith(mk)) month += v;
   const one = kwh => ({ kwh: +kwh.toFixed(1), litres: +(kwh * GEN_LPKWH).toFixed(1), co2: +(kwh * GEN_LPKWH * CO2_KG_PER_L).toFixed(1) });
-  return { lpkwh: GEN_LPKWH, co2PerL: CO2_KG_PER_L, month: mk, today: one((mon.solar || {})[day] || 0), mon: one(month), total: one(sol.kwh) };
+  return { lpkwh: GEN_LPKWH, co2PerL: CO2_KG_PER_L, month: mk, today: one((daily || {})[day] || 0), mon: one(month), total: one(total) };
 }
 function genFuel(v) {
   const [y, m] = bparts(Date.now()).day.split('-').map(Number), cur = y + '-' + String(m).padStart(2, '0'), prev = (m < 2 ? y - 1 : y) + '-' + String(m < 2 ? 12 : m - 1).padStart(2, '0');
@@ -506,6 +506,8 @@ function dataLogCols(S) {
            { k: 'g' + n + 'fuel', grp: G, label: G + ' FL', get: r => r[id + 'L'], sum: true }); });
   c.push({ k: 'skw', grp: 'Solar', label: 'Solar kW', get: r => r.solar },
          { k: 'skwh', grp: 'Solar', label: 'Solar kWh', get: r => r.solarKwh, sum: true },
+         { k: 'sfs', grp: 'Solar saving', label: 'Fuel saved L', get: r => r.solarKwh == null ? null : r.solarKwh * GEN_LPKWH, sum: true },
+         { k: 'sco2', grp: 'Solar saving', label: 'CO₂ saved kg', get: r => r.solarKwh == null ? null : r.solarKwh * GEN_LPKWH * CO2_KG_PER_L, sum: true },
          { k: 'tkwh', grp: 'Total', label: 'Total kWh', get: r => { let t = 0, a = false; for (const id of S.gens()) { const v = kwhOf(r, id); if (v != null) { t += v; a = true; } } if (r.solarKwh != null) { t += r.solarKwh; a = true; } return a ? t : null; }, sum: true },
          { k: 'temp', grp: 'Weather', label: 'Out °C', get: r => r.temp });
   if (S.counter) c.push({ k: 'counter', grp: 'Tank', label: 'Refuel counter', get: r => r.counter });
@@ -671,7 +673,7 @@ const MH_TANK_L = +E.MAHFARA_TANK_L || 4000, MH_STABLE_L = +E.MAHFARA_STABLE_L |
 let mcons = { day: null, since: null, total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null }, mmon = { daily: {}, fuel: {} }, mcLast = null, mcKw = 0, mcKwN = 0, mcRecent = [], meLast = null, mmSaved = 0;
 try { const j = JSON.parse(fs.readFileSync(MH_CONS_FILE, 'utf8')); if (j && j.day) mcons = j; } catch (_) {}
 try { const j = JSON.parse(fs.readFileSync(MH_MON_FILE, 'utf8')); if (j && j.daily) mmon = j; } catch (_) {}
-mmon.fuel = mmon.fuel || {};
+mmon.fuel = mmon.fuel || {}; mmon.solar = mmon.solar || {};      // solar kWh per day (kept, never trimmed)
 // AL MAHFARA solar production, running total of the real solar meter kW added up over time. NEVER reset (not daily, not monthly).
 const MH_SOL_FILE = path.join(__dirname, 'mh_solar_total.json');
 let msol = { kwh: 0, since: null }, msolLast = null, msolSaved = 0;
@@ -687,7 +689,7 @@ function mhTrack(v) {
   const L = v.fuel_l, now = Date.now(), gk = (v['m1.kw'] || 0) + (v['m2.kw'] || 0);
   const skw = Math.max(0, v['solar.kw'] || 0), kwNow = gk + skw;          // energy produced = generators + solar, added up over time
   { if (!msol.since) msol.since = now;
-    if (msolLast && now - msolLast.t < 120e3) msol.kwh += (skw + msolLast.kw) / 2 * (now - msolLast.t) / 3600e3;
+    if (msolLast && now - msolLast.t < 120e3) { const e = (skw + msolLast.kw) / 2 * (now - msolLast.t) / 3600e3, dk = bparts(now).day; msol.kwh += e; mmon.solar[dk] = (mmon.solar[dk] || 0) + e; }
     msolLast = { t: now, kw: skw };
     if (now - msolSaved > 60e3) { msolSaved = now; fs.writeFile(MH_SOL_FILE, JSON.stringify(msol), () => {}); } }
   { const dk = bparts(now).day;
@@ -752,7 +754,7 @@ function mergeCounters(j) {
 function mhMergeCounters(j) {
   if (!j) return null;
   const out = {};
-  if (j.mon && j.mon.daily) { for (const [k, v] of Object.entries(j.mon.daily)) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mmon.daily[k] = Math.max(mmon.daily[k] || 0, +v); out.days = Object.keys(mmon.daily).length; for (const [k, v] of Object.entries(j.mon.fuel || {})) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mmon.fuel[k] = Math.max(mmon.fuel[k] || 0, +v); fs.writeFile(MH_MON_FILE, JSON.stringify(mmon), () => {}); }
+  if (j.mon && j.mon.daily) { for (const [k, v] of Object.entries(j.mon.daily)) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mmon.daily[k] = Math.max(mmon.daily[k] || 0, +v); out.days = Object.keys(mmon.daily).length; for (const [k, v] of Object.entries(j.mon.fuel || {})) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mmon.fuel[k] = Math.max(mmon.fuel[k] || 0, +v); for (const [k, v] of Object.entries(j.mon.solar || {})) if (/^\d{4}-\d\d-\d\d$/.test(k) && isFinite(v) && v >= 0) mmon.solar[k] = Math.max(mmon.solar[k] || 0, +v); fs.writeFile(MH_MON_FILE, JSON.stringify(mmon), () => {}); }
   if (j.sol && isFinite(j.sol.kwh) && j.sol.kwh >= 0) { msol.kwh = Math.max(msol.kwh, +j.sol.kwh); if (j.sol.since && (!msol.since || j.sol.since < msol.since)) msol.since = +j.sol.since; fs.writeFile(MH_SOL_FILE, JSON.stringify(msol), () => {}); out.solar = Math.round(msol.kwh); }
   const c = j.cons;
   if (c && c.day && !mcons.day && c.day === bparts(Date.now()).day) mcons = { day: c.day, since: c.since || Date.now(), total: 0, refuelled: 0, hours: {}, kwh: 0, kwhH: {}, prev: null };
@@ -1003,7 +1005,7 @@ const server = http.createServer((req, res) => {
   if (url === '/api/mahfara/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     const ok = cfg.mode === 'fbox';
-    return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), genFuel: mhGenFuel(mh.values), solarTotal: { kwh: +msol.kwh.toFixed(2), since: msol.since, kw: +Math.max(0, mh.values['solar.kw'] || 0).toFixed(1) }, now: Date.now() }));
+    return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), solarSave: solarSave(mmon.solar, msol.kwh), genFuel: mhGenFuel(mh.values), solarTotal: { kwh: +msol.kwh.toFixed(2), since: msol.since, kw: +Math.max(0, mh.values['solar.kw'] || 0).toFixed(1) }, now: Date.now() }));
   }
   if (url === '/api/status') {
     const vid = (new URL(req.url, 'http://x').searchParams.get('v') || '');
