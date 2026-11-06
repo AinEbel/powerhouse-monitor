@@ -298,6 +298,39 @@ function trackGenFuel(v) {
   }
   if (now - gfSaved > 60e3) { gfSaved = now; fs.writeFile(GF_FILE, JSON.stringify(gf), () => {}); }
 }
+// AL MAHFARA generators: the same counting, but completely separate from Al Dhour (own file, own counters, own backup part).
+const MH_GF_FILE = path.join(__dirname, 'mh_gen_fuel.json'), MH_GF = [{ id: 'm1', key: 'm1' }, { id: 'm2', key: 'm2' }];
+let mgf = {}, mgfLast = {}, mgfSaved = 0;
+try { const j = JSON.parse(fs.readFileSync(MH_GF_FILE, 'utf8')); if (j && typeof j === 'object') mgf = j; } catch (_) {}
+function mgfOf(id) { return mgf[id] = mgf[id] || { total: 0, months: {}, since: null }; }
+function mhMergeGenFuel(j) {                                // keep the bigger value, so a count can never go down
+  if (!j || typeof j !== 'object') return 0;
+  let n = 0;
+  for (const [id, x] of Object.entries(j)) {
+    if (!x || !MH_GF.some(g => g.id === id)) continue;
+    const r = mgfOf(id); n++;
+    if (isFinite(x.total) && x.total >= 0) r.total = Math.max(r.total, +x.total);
+    for (const [k, v] of Object.entries(x.months || {})) if (/^\d{4}-\d\d$/.test(k) && isFinite(v) && v >= 0) r.months[k] = Math.max(r.months[k] || 0, +v);
+    if (x.since && (!r.since || x.since < r.since)) r.since = +x.since;
+  }
+  fs.writeFileSync(MH_GF_FILE, JSON.stringify(mgf));
+  return n;
+}
+function mhTrackGenFuel(v) {
+  const now = Date.now(), mk = bparts(now).day.slice(0, 7);
+  for (const g of MH_GF) {
+    const kw = Math.max(0, +v[g.key + '.kw'] || 0), r = mgfOf(g.id), l = mgfLast[g.id];
+    if (!r.since) r.since = now;
+    if (l && now - l.t < 120e3) { const L = (kw + l.kw) / 2 * (now - l.t) / 3600e3 * GEN_LPKWH; r.total += L; r.months[mk] = (r.months[mk] || 0) + L; }
+    mgfLast[g.id] = { t: now, kw };
+  }
+  if (now - mgfSaved > 60e3) { mgfSaved = now; fs.writeFile(MH_GF_FILE, JSON.stringify(mgf), () => {}); }
+}
+function mhGenFuel(v) {
+  const [y, m] = bparts(Date.now()).day.split('-').map(Number), cur = y + '-' + String(m).padStart(2, '0'), prev = (m < 2 ? y - 1 : y) + '-' + String(m < 2 ? 12 : m - 1).padStart(2, '0');
+  return { lpkwh: GEN_LPKWH, month: cur, lastMonth: prev, gens: Object.fromEntries(MH_GF.map(g => { const r = mgfOf(g.id), kw = Math.max(0, +(v || {})[g.key + '.kw'] || 0);
+    return [g.key, { lph: +(kw * GEN_LPKWH).toFixed(1), month: +(r.months[cur] || 0).toFixed(1), lastMonth: r.months[prev] != null ? +r.months[prev].toFixed(1) : null, total: +r.total.toFixed(1), since: r.since }]; })) };
+}
 function genFuel(v) {
   const [y, m] = bparts(Date.now()).day.split('-').map(Number), cur = y + '-' + String(m).padStart(2, '0'), prev = (m < 2 ? y - 1 : y) + '-' + String(m < 2 ? 12 : m - 1).padStart(2, '0');
   return { lpkwh: GEN_LPKWH, month: cur, lastMonth: prev, gens: Object.fromEntries(gens.map(g => { const r = gfOf(g.id), kw = Math.max(0, +(v || {})[g.id + '.kw'] || 0);
@@ -339,6 +372,42 @@ function trackDataLog(v) {
   if (v.fuel_counter != null && isFinite(v.fuel_counter)) dAcc.counter = +v.fuel_counter;
   if (v.fuel_l != null && isFinite(v.fuel_l)) dAcc.tank = Math.round(v.fuel_l);
 }
+// AL MAHFARA hourly log: the same lines, completely separate (own file mh_data_log.json, own rows). Kept forever, never trimmed.
+// No refuelling counter is read from the AL MAHFARA FBox, so that column is left out.
+const MH_DLOG_FILE = path.join(__dirname, 'mh_data_log.json');
+let mdlog = [], mdAcc = null;
+try { const j = JSON.parse(fs.readFileSync(MH_DLOG_FILE, 'utf8')); if (Array.isArray(j)) mdlog = j; } catch (_) {}
+const MH_LOG_GENS = ['m1', 'm2'];
+function mdlogAdd(row) { if (mdlog.some(r => r.t === row.t)) return false; mdlog.push(row); mdlog.sort((a, b) => a.t - b.t); return true; }
+function mdlogClose(a) {
+  const n = a.n || 1, row = { t: a.h };
+  for (const id of MH_LOG_GENS) { row[id] = +(a.kw[id] / n).toFixed(1); row[id + 'Kwh'] = +a.kwh[id].toFixed(1); row[id + 'L'] = +(a.kwh[id] * GEN_LPKWH).toFixed(1); }
+  row.solar = +(a.kw.solar / n).toFixed(1); row.solarKwh = +a.kwh.solar.toFixed(1); row.tank = a.tank; { const c = tempFor(a.h); row.temp = c != null ? c : wNow && Date.now() - wNow.t < 3 * 3600e3 ? wNow.c : null; }
+  mdlogAdd(row); fs.writeFile(MH_DLOG_FILE, JSON.stringify(mdlog), () => {});
+}
+function mhTrackDataLog(v) {
+  const now = Date.now(), h = hourStart(now), kw = { solar: Math.max(0, +v['solar.kw'] || 0) }; for (const id of MH_LOG_GENS) kw[id] = Math.max(0, +v[id + '.kw'] || 0);
+  if (mdAcc && mdAcc.h !== h) { mdlogClose(mdAcc); mdAcc = null; }
+  if (!mdAcc) { mdAcc = { h, n: 0, kw: {}, kwh: {}, last: null }; for (const k in kw) { mdAcc.kw[k] = 0; mdAcc.kwh[k] = 0; } }
+  mdAcc.n++; for (const k in kw) mdAcc.kw[k] += kw[k];
+  if (mdAcc.last && now - mdAcc.last.t < 120e3) for (const k in kw) mdAcc.kwh[k] += (kw[k] + mdAcc.last.kw[k]) / 2 * (now - mdAcc.last.t) / 3600e3;
+  mdAcc.last = { t: now, kw };
+  if (v.fuel_l != null && isFinite(v.fuel_l)) mdAcc.tank = Math.round(v.fuel_l);
+}
+// First start with an empty AL MAHFARA log: fill it from the AL MAHFARA chart samples (one a minute, last 24 hours).
+function mdlogFromHistory() {
+  if (mdlog.length || !mhHist.length) return;
+  const by = new Map();
+  for (const p of mhHist) { const h = hourStart(p.t); if (h >= hourStart(Date.now())) continue; if (!by.has(h)) by.set(h, []); by.get(h).push(p); }
+  for (const [h, ps] of by) {
+    const row = { t: h, backfill: true };
+    for (const id of MH_LOG_GENS) { const k = ps.map(p => p[id]).filter(x => x != null); row[id] = k.length ? +(k.reduce((a, b) => a + b, 0) / k.length).toFixed(1) : null; row[id + 'L'] = row[id] == null ? null : +(row[id] * ps.length / 60 * GEN_LPKWH).toFixed(1); }
+    row.solar = null; row.solarKwh = null; const lf = [...ps].reverse().find(p => p.fuel != null); row.tank = lf ? Math.round(lf.fuel) : null;
+    mdlog.push(row);
+  }
+  mdlog.sort((a, b) => a.t - b.t); if (mdlog.length) fs.writeFile(MH_DLOG_FILE, JSON.stringify(mdlog), () => {});
+}
+function mhMergeDataLog(list) { let n = 0; if (Array.isArray(list)) for (const r of list) if (r && isFinite(r.t)) { if (mdlogAdd(r)) n++; else if (r.temp != null) { const o = mdlog.find(x => x.t === r.t); if (o && o.temp == null) o.temp = r.temp; } } return n; }
 // Outside temperature (no sensor on the FBox): free hourly weather data from open-meteo.com for the site's location.
 // Every 30 minutes the last days are read and each logged hour that has no temperature yet gets one (nothing is ever replaced).
 const W_LAT = +(E.WEATHER_LAT || (cfg.site.lat ?? 33.1104)), W_LON = +(E.WEATHER_LON || (cfg.site.lon ?? 35.4013)), W_URL = E.WEATHER_URL || 'https://api.open-meteo.com/v1/forecast';
@@ -346,16 +415,18 @@ let wHours = new Map(), wNow = null, wErr = null;
 async function weatherPoll() {
   if (E.WEATHER === 'off') return;
   try {
-    const days = dlog.some(r => r.temp == null && Date.now() - r.t < 92 * DAY) ? 92 : 2;
+    const days = [...dlog, ...mdlog].some(r => r.temp == null && Date.now() - r.t < 92 * DAY) ? 92 : 2;
     const r = await fetch(W_URL + '?latitude=' + W_LAT + '&longitude=' + W_LON + '&hourly=temperature_2m&current=temperature_2m&past_days=' + days + '&forecast_days=1&timeformat=unixtime&timezone=GMT', { signal: AbortSignal.timeout(20000) });
     if (!r.ok) throw new Error('weather answered ' + r.status);
     const j = await r.json(), t = j.hourly && j.hourly.time, v = j.hourly && j.hourly.temperature_2m;
     if (!Array.isArray(t) || !Array.isArray(v)) throw new Error('weather: no hourly data');
     t.forEach((x, i) => { if (v[i] != null && isFinite(v[i])) wHours.set(x * 1000, +v[i]); });
     if (j.current && isFinite(j.current.temperature_2m)) wNow = { t: Date.now(), c: +j.current.temperature_2m };
-    let n = 0;
+    let n = 0, mn = 0;
     for (const row of dlog) if (row.temp == null) { const c = tempFor(row.t); if (c != null) { row.temp = c; n++; } }
+    for (const row of mdlog) if (row.temp == null) { const c = tempFor(row.t); if (c != null) { row.temp = c; mn++; } }
     if (n) fs.writeFile(DLOG_FILE, JSON.stringify(dlog), () => {});
+    if (mn) fs.writeFile(MH_DLOG_FILE, JSON.stringify(mdlog), () => {});
     wErr = null;
   } catch (e) { wErr = e.message; console.error('weather', e.message); }
 }
@@ -406,47 +477,52 @@ function xlsx(rows, widths, o) {
     ['xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="4" topLeftCell="C5" activePane="bottomRight" state="frozen"/></sheetView></sheetViews><cols>' + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>' + sheet + '</sheetData>' + (o.merges && o.merges.length ? '<mergeCells count="' + o.merges.length + '">' + o.merges.map(m => '<mergeCell ref="' + m + '"/>').join('') + '</mergeCells>' : '') + '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>']
   ]);
 }
+// Each power house has its own log (own file, own rows); the same columns and pages are built from it.
+const LOG_SITES = {
+  aldhour: { name: 'AL DHOUR POWER HOUSE', slug: 'al-dhour', counter: true, gens: () => gens.map(g => g.id), rows: () => dlog, tank: () => cfg.site.tankLitres },
+  mahfara: { name: 'AL MAHFARA POWER HOUSE', slug: 'al-mahfara', counter: false, gens: () => ['m1', 'm2'], rows: () => mdlog, tank: () => MH_TANK_L }
+};
 // Set LOG_PASSWORD on Render to ask for a password before the Excel file is given (the live page stays open). Not set = open to everyone.
 const LOG_PASSWORD = E.LOG_PASSWORD || '';
 function beirutMidnight(d) { const u = Date.parse(d + 'T00:00:00Z'); for (const o of [2, 3, 4, 1]) { const t = u - o * 3600e3, b = bparts(t); if (b.day === d && b.hour === 0) return t; } return u - 2 * 3600e3; }
 const BZM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 // Columns of the data log. ?cols=a,b,c picks some of them (the page has a tick box for each); none given = all.
-function dataLogCols() {
+function dataLogCols(S) {
   const kwhOf = (r, id) => r[id + 'Kwh'] != null ? r[id + 'Kwh'] : r[id + 'L'] != null ? r[id + 'L'] / GEN_LPKWH : null;
   const c = [];
-  gens.forEach((g, i) => { const n = i + 1, G = 'Gen' + n;
-    c.push({ k: 'g' + n + 'kw', grp: G, label: G + ' kW', get: r => r[g.id] },
-           { k: 'g' + n + 'kwh', grp: G, label: G + ' kWh', get: r => kwhOf(r, g.id), sum: true },
-           { k: 'g' + n + 'fuel', grp: G, label: G + ' FL', get: r => r[g.id + 'L'], sum: true }); });
+  S.gens().forEach((id, i) => { const n = i + 1, G = 'Gen' + n;
+    c.push({ k: 'g' + n + 'kw', grp: G, label: G + ' kW', get: r => r[id] },
+           { k: 'g' + n + 'kwh', grp: G, label: G + ' kWh', get: r => kwhOf(r, id), sum: true },
+           { k: 'g' + n + 'fuel', grp: G, label: G + ' FL', get: r => r[id + 'L'], sum: true }); });
   c.push({ k: 'skw', grp: 'Solar', label: 'Solar kW', get: r => r.solar },
          { k: 'skwh', grp: 'Solar', label: 'Solar kWh', get: r => r.solarKwh, sum: true },
-         { k: 'tkwh', grp: 'Total', label: 'Total kWh', get: r => { let t = 0, a = false; for (const g of gens) { const v = kwhOf(r, g.id); if (v != null) { t += v; a = true; } } if (r.solarKwh != null) { t += r.solarKwh; a = true; } return a ? t : null; }, sum: true },
-         { k: 'temp', grp: 'Weather', label: 'Out °C', get: r => r.temp },
-         { k: 'counter', grp: 'Tank', label: 'Refuel counter', get: r => r.counter },
-         { k: 'tank', grp: 'Tank', label: 'Tank L', get: r => r.tank });
+         { k: 'tkwh', grp: 'Total', label: 'Total kWh', get: r => { let t = 0, a = false; for (const id of S.gens()) { const v = kwhOf(r, id); if (v != null) { t += v; a = true; } } if (r.solarKwh != null) { t += r.solarKwh; a = true; } return a ? t : null; }, sum: true },
+         { k: 'temp', grp: 'Weather', label: 'Out °C', get: r => r.temp });
+  if (S.counter) c.push({ k: 'counter', grp: 'Tank', label: 'Refuel counter', get: r => r.counter });
+  c.push({ k: 'tank', grp: 'Tank', label: 'Tank L', get: r => r.tank });
   return c;
 }
-function dataLogRows(from, to, pick) {
+function dataLogRows(S, from, to, pick) {
   const f = t => { const p = {}; for (const x of BZM.formatToParts(new Date(t))) p[x.type] = x.value; return [p.year + '-' + p.month + '-' + p.day, p.hour + ':' + p.minute]; };   // Lebanon time (summer and winter)
-  const r1 = x => x == null || !isFinite(x) ? null : Math.round(x * 10) / 10, all = dataLogCols();
+  const r1 = x => x == null || !isFinite(x) ? null : Math.round(x * 10) / 10, all = dataLogCols(S);
   const cols = pick && pick.length ? all.filter(c => pick.includes(c.k)) : all, sum = {}, rows = [];
-  for (const r of dlog) if (r.t >= from && r.t <= to) {
+  for (const r of S.rows()) if (r.t >= from && r.t <= to) {
     const [d, h] = f(r.t);
     rows.push({ d, h, star: !!r.backfill, v: cols.map(c => { const x = r1(c.get(r)); if (c.sum && x != null) sum[c.k] = (sum[c.k] || 0) + x; return x; }) });
   }
-  return { site: 'AL DHOUR POWER HOUSE', cols, rows, total: cols.map(c => c.sum ? r1(sum[c.k] || 0) : null),
+  return { site: S.name, cols, rows, total: cols.map(c => c.sum ? r1(sum[c.k] || 0) : null),
     note: 'Generator fuel = generator kWh × ' + GEN_LPKWH + ' L/kWh. Hours marked * were rebuilt from the chart data (no refuelling counter reading).' };
 }
-function dataLogXlsx(from, to, pick, period) {
-  const d = dataLogRows(from, to, pick), cols = d.cols.length + 2;
-  const cap = cfg.site.tankLitres ? ' · Tank capacity ' + cfg.site.tankLitres.toLocaleString('en-US') + ' L' : '';
+function dataLogXlsx(S, from, to, pick, period) {
+  const d = dataLogRows(S, from, to, pick), cols = d.cols.length + 2, tk = S.tank();
+  const cap = tk ? ' · Tank capacity ' + tk.toLocaleString('en-US') + ' L' : '';
   const rows = [[d.site], ['Hourly data log · ' + period + cap], [], ['Date', 'Hour', ...d.cols.map(c => c.label)],
     ...d.rows.map(r => [r.d, r.h, ...r.v]), ['TOTAL', d.rows.length + ' h', ...d.total]];
   return xlsx(rows, [12, 8, ...d.cols.map(c => Math.max(10, c.label.length + 3))], { title: 1, head: [4], total: rows.length, cols });
 }
 // The same log as a page to read in the browser: pick the readings to show, search a date or hour, Print / Save as PDF.
-function dataLogHtml(from, to, pick, period, qs) {
-  const d = dataLogRows(from, to, dataLogCols().map(c => c.k)), on = new Set(pick && pick.length ? pick : d.cols.map(c => c.k));
+function dataLogHtml(S, from, to, pick, period, qs) {
+  const d = dataLogRows(S, from, to, dataLogCols(S).map(c => c.k)), tk = S.tank(), on = new Set(pick && pick.length ? pick : d.cols.map(c => c.k));
   const esc = x => x == null ? '' : String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'), n = x => x == null ? '–' : typeof x === 'number' ? x.toLocaleString('en-US', { maximumFractionDigits: 1 }) : esc(x);
   const groups = []; for (const c of d.cols) { const g = groups[groups.length - 1]; if (g && g.name === c.grp) g.cols.push(c); else groups.push({ name: c.grp, cols: [c] }); }
   const cards = d.cols.filter(c => c.sum).map(c => `<div class="card" data-k="${c.k}"><span>${esc(c.label)}</span><b>${n(d.total[d.cols.indexOf(c)])}</b></div>`).join('');
@@ -465,7 +541,7 @@ th.g,td.g{border-left:2px solid #c9d1d7}tbody tr:nth-child(even) td{background:#
 tfoot td{font-weight:700;background:#fff3c4;position:sticky;bottom:0;border-top:2px solid #ffc21a}.note{color:#6b7a85;font-size:12px;margin-top:8px}.off{display:none}
 @media print{body{background:#fff;font-size:9px}header{padding:6px 0;background:#fff;color:#000;border-bottom:2px solid #000}header p{color:#333}main{padding:6px 0}.bar{display:none}.wrap{max-height:none;overflow:visible;border:0}
 thead th,tfoot td{position:static}thead th{background:#ddd!important;color:#000}th,td{padding:2px 5px}.card{padding:4px 8px;min-width:0}.card b{font-size:13px}@page{size:A4 landscape;margin:8mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-</style></head><body><header><h1>${esc(d.site)}</h1><p>Hourly data log · ${esc(period)} · ${d.rows.length} hours${cfg.site.tankLitres ? ' · Tank capacity ' + cfg.site.tankLitres.toLocaleString('en-US') + ' L' : ''}</p></header><main>
+</style></head><body><header><h1>${esc(d.site)}</h1><p>Hourly data log · ${esc(period)} · ${d.rows.length} hours${tk ? ' · Tank capacity ' + tk.toLocaleString('en-US') + ' L' : ''}</p></header><main>
 <div class="cards">${cards}</div>
 <div class="bar"><div class="picks">${groups.map(g => `<fieldset><legend>${esc(g.name)}</legend><div class="opts">${g.cols.map(c => `<label><span>${esc(c.label)}</span><input type="checkbox" data-k="${c.k}"${on.has(c.k) ? ' checked' : ''}></label>`).join('')}</div></fieldset>`).join('')}</div>
 <input type="search" id="q" placeholder="Search a date or hour, e.g. 2026-11-05 14:00"><span id="c"></span><button onclick="print()">Print / Save as PDF</button></div>
@@ -568,7 +644,7 @@ async function mhPoll() {
     if (!Object.keys(values).length && firstErr) throw new Error(firstErr);
     ['m1', 'm2'].forEach(id => { if (values[id + '.hrs'] != null) values[id + '.hours'] = values[id + '.hrs'] + (values[id + '.mn'] || 0) / 60; });
     mh = { conn, updated: Date.now(), values, error: null };
-    mhTrack(values);
+    mhTrack(values); mhTrackGenFuel(values); mhTrackDataLog(values);
     const last = mhHist[mhHist.length - 1];
     if (!last || Date.now() - last.t >= 60000) {
       const pt = { t: Date.now(), fuel: values.fuel_l ?? null, m1: values['m1.kw'] ?? null, m2: values['m2.kw'] ?? null };
@@ -712,6 +788,8 @@ function mergeAll(j) {
   if (j.alarm != null && isFinite(j.alarm) && j.alarm >= 0 && !fs.existsSync(ALARM_FILE)) { alarmL = +j.alarm; fs.writeFileSync(ALARM_FILE, JSON.stringify({ litres: alarmL })); out.alarm = alarmL; }
   if (j.mh) {
     out.mh = mhMergeCounters(j.mh) || {};
+    if (j.mh.gf) out.mh.genFuel = mhMergeGenFuel(j.mh.gf);
+    if (j.mh.dlog) { out.mh.dataLog = mhMergeDataLog(j.mh.dlog); fs.writeFileSync(MH_DLOG_FILE, JSON.stringify(mdlog)); }
     if (Array.isArray(j.mh.hist)) { const n = mhHist.length; mhHist = mergeList(mhHist, j.mh.hist, h => Math.floor(h.t / 60000), Infinity).filter(h => Date.now() - h.t < DAY); out.mh.hist = mhHist.length - n; }
   }
   // the counter files are written straight away, so a restart right after this keeps everything
@@ -721,7 +799,7 @@ function mergeAll(j) {
 }
 // Everything that is recorded, in one file (Al Dhour and Al Mahfara). The next version reads this from the running one before it goes online.
 function exportAll() {
-  return { v: 2, t: Date.now(), cons, mon, sol, gf, dlog, refuels, fuelLog, history, alarm: alarmL, mh: { cons: mcons, mon: mmon, sol: msol, hist: mhHist } };
+  return { v: 2, t: Date.now(), cons, mon, sol, gf, dlog, refuels, fuelLog, history, alarm: alarmL, mh: { cons: mcons, mon: mmon, sol: msol, gf: mgf, dlog: mdlog, hist: mhHist } };
 }
 // Hand-over on Render: a new version is started next to the running one and only gets the visitors once it listens on its port.
 // So before listening, it copies all the recorded data from the running version through the public address.
@@ -804,16 +882,17 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({ now: Date.now(), since: trackStart, level: fuelCur, total: fuelLog.length, list: list.slice(0, 300) }));
   }
-  if (url === '/api/datalog.xlsx' || url === '/api/datalog.html') {       // hourly data log as an Excel file; ?from=YYYY-MM-DD&to=YYYY-MM-DD (Lebanon days, both included)
+  if (url === '/api/datalog.xlsx' || url === '/api/datalog.html' || url === '/api/mahfara/datalog.xlsx' || url === '/api/mahfara/datalog.html') {
+    const S = url.startsWith('/api/mahfara/') ? LOG_SITES.mahfara : LOG_SITES.aldhour;       // hourly data log as an Excel file; ?from=YYYY-MM-DD&to=YYYY-MM-DD (Lebanon days, both included)
     const q = new URL(req.url, 'http://x').searchParams, H = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
     if (LOG_PASSWORD && (req.headers['x-log-key'] || q.get('key') || '') !== LOG_PASSWORD) { res.writeHead(401, H); return res.end(JSON.stringify({ error: 'password' })); }
     const day = /^\d{4}-\d\d-\d\d$/, f = q.get('from'), t = q.get('to');
     const from = f && day.test(f) ? beirutMidnight(f) : 0, to = t && day.test(t) ? beirutMidnight(t) + DAY - 1 : Date.now();
     const pick = (q.get('cols') || '').split(',').filter(Boolean), period = (f ? 'From ' + f : 'From the start') + (t ? ' to ' + t : ' to now');
-    if (url.endsWith('.html')) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(dataLogHtml(from, to, pick, period)); }
-    const name = 'al-dhour-hourly-log' + (f ? '-' + f : '') + (t ? '-to-' + t : '') + '.xlsx';
+    if (url.endsWith('.html')) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(dataLogHtml(S, from, to, pick, period)); }
+    const name = S.slug + '-hourly-log' + (f ? '-' + f : '') + (t ? '-to-' + t : '') + '.xlsx';
     res.writeHead(200, { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="' + name + '"' });
-    return res.end(dataLogXlsx(from, to, pick, period));
+    return res.end(dataLogXlsx(S, from, to, pick, period));
   }
   if (url === '/api/refuels' || url === '/api/refuels.csv') {
     const list = [...refuels].reverse();
@@ -898,7 +977,7 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (url === '/api/mahfara/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons: mcons, mon: mmon, sol: msol })); }
+  if (url === '/api/mahfara/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons: mcons, mon: mmon, sol: msol, gf: mgf })); }
   if (url === '/api/mahfara/restore' && req.method === 'POST') {
     let body = ''; req.on('data', d => { body += d; if (body.length > 3e7) req.destroy(); });
     req.on('end', () => {
@@ -914,7 +993,7 @@ const server = http.createServer((req, res) => {
   if (url === '/api/mahfara/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     const ok = cfg.mode === 'fbox';
-    return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), solarTotal: { kwh: +msol.kwh.toFixed(2), since: msol.since, kw: +Math.max(0, mh.values['solar.kw'] || 0).toFixed(1) }, now: Date.now() }));
+    return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), genFuel: mhGenFuel(mh.values), solarTotal: { kwh: +msol.kwh.toFixed(2), since: msol.since, kw: +Math.max(0, mh.values['solar.kw'] || 0).toFixed(1) }, now: Date.now() }));
   }
   if (url === '/api/status') {
     const vid = (new URL(req.url, 'http://x').searchParams.get('v') || '');
@@ -937,4 +1016,4 @@ const server = http.createServer((req, res) => {
     res.end(data);
   });
 });
-takeOver().finally(() => { dlogFromHistory(); server.listen(cfg.port, () => console.log('Dashboard on http://localhost:' + cfg.port + '  (mode: ' + cfg.mode + ')')); });
+takeOver().finally(() => { dlogFromHistory(); mdlogFromHistory(); server.listen(cfg.port, () => console.log('Dashboard on http://localhost:' + cfg.port + '  (mode: ' + cfg.mode + ')')); });

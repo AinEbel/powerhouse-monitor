@@ -11,4 +11,6 @@ mh_consumption.json
 mh_month.json
 mh_solar_total.json
 gen_fuel.json
+mh_gen_fuel.json
+mh_data_log.json
 data_log.json
