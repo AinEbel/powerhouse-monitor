@@ -48,7 +48,7 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .big{font-family:"Share Tech Mono",monospace;color:var(--fuel);text-shadow:0 0 10px rgba(255,159,26,.45);font-size:54px;line-height:1;letter-spacing:.02em}
 .gens .big{color:#3ddc84;text-shadow:0 0 10px rgba(61,220,132,.4)}
 .rd{margin-top:14px}
-.dlbtns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.dlbtn{font-family:'Barlow Condensed';font-size:15px;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;color:#111;background:var(--yellow);padding:8px 16px;border-radius:3px;font-weight:700}.dlbtn:hover{filter:brightness(1.1)}.dlbtn{border:0;cursor:pointer}.dlbtns{align-items:center}.dlbtns label{font-family:'Barlow Condensed';font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--steel);display:flex;align-items:center;gap:8px}.dlbtns input{background:var(--lcd);color:var(--ink);border:1px solid var(--line);padding:7px 9px;font-family:'Share Tech Mono',monospace;font-size:16px;color-scheme:dark}
+.dlbtns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.dlbtn{font-family:'Barlow Condensed';font-size:15px;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;color:#111;background:var(--yellow);padding:8px 16px;border-radius:3px;font-weight:700}.dlbtn:hover{filter:brightness(1.1)}.dlbtn{border:0;cursor:pointer}.dlbtns{align-items:center}.dlpick{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px}.dlpick label{font-family:'Barlow Condensed';font-size:15px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);display:flex;align-items:center;gap:6px;cursor:pointer}.dlpick input{accent-color:var(--yellow);width:16px;height:16px}.dlbtns label{font-family:'Barlow Condensed';font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--steel);display:flex;align-items:center;gap:8px}.dlbtns input{background:var(--lcd);color:var(--ink);border:1px solid var(--line);padding:7px 9px;font-family:'Share Tech Mono',monospace;font-size:16px;color-scheme:dark}
 .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}.dtile>span{display:block;font-family:"Barlow Condensed";font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--steel);margin-bottom:4px}.dtile .lcd{display:block;padding:7px 11px 5px}.dtile b{font-family:"Share Tech Mono",monospace;font-size:24px;font-weight:400}.dtile.wide{grid-column:1/-1}.dtile.wide .lcd{text-align:center;padding:9px 11px 7px}.dtile.wide b{font-size:30px}
 .gfuel{margin-top:14px;font-size:18px;table-layout:fixed}.gfuel th,.gfuel td{text-align:center!important;padding-left:2px;padding-right:2px}
 .lcd small{font-family:"Barlow Condensed";font-size:20px;color:var(--steel);margin-left:8px;letter-spacing:.06em;text-transform:uppercase}
@@ -272,7 +272,8 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
   </div>
   </div>
 
-  <section class="panel dlogp"><h2>Data logger</h2><div class="sub">One line per hour: Generator 1 and 2 kW and fuel, solar kW and kWh, refuelling counter, fuel in tank and tank capacity.</div>
+  <section class="panel dlogp"><h2>Data logger</h2><div class="sub">One line per hour. Tick the readings you want, choose the dates, then view or download.</div>
+    <div class="dlpick" id="dlPick"><label><input type="checkbox" value="g1kw,g1kwh,g1fuel" checked> Generator 1</label><label><input type="checkbox" value="g2kw,g2kwh,g2fuel" checked> Generator 2</label><label><input type="checkbox" value="skw,skwh" checked> Solar</label><label><input type="checkbox" value="tkwh" checked> Total kWh</label><label><input type="checkbox" value="counter" checked> Refuelling counter</label><label><input type="checkbox" value="tank" checked> Fuel in tank</label></div>
     <div class="dlbtns"><label>From <input type="date" id="dlFrom"></label><label>To <input type="date" id="dlTo"></label><button class="dlbtn" id="dlView" type="button">View</button><button class="dlbtn" id="dlGo" type="button">Download Excel</button><span class="sub" id="dlMsg" style="margin:0"></span></div></section>
 
   <section class="panel" id="hourlyp" style="display:none"><h2>Fuel used per hour</h2><div class="sub" id="hourlysum"></div><div class="tscroll"><table class="stats" id="hourly"></table></div></section>
@@ -749,15 +750,19 @@ clkTick(); setInterval(clkTick, 1000);
   if (!F) return;
   T.value = d(Date.now()); F.value = d(Date.now() - 6 * 864e5);
   let key = ''; try { key = sessionStorage.getItem('logKey') || ''; } catch (_) {}
+  const cols = () => [...document.querySelectorAll('#dlPick input:checked')].map(b => b.value).join(',');
+  try { const sv = JSON.parse(localStorage.getItem('logCols') || 'null'); if (Array.isArray(sv)) document.querySelectorAll('#dlPick input').forEach(b => b.checked = sv.includes(b.value)); } catch (_) {}
+  document.querySelectorAll('#dlPick input').forEach(b => b.onchange = () => { try { localStorage.setItem('logCols', JSON.stringify([...document.querySelectorAll('#dlPick input:checked')].map(x => x.value))); } catch (_) {} });
   $('dlView').onclick = () => {
     if (F.value && T.value && F.value > T.value) { M.textContent = 'The start date is after the end date.'; return; }
-    M.textContent = ''; window.open('/api/datalog.html?from=' + F.value + '&to=' + T.value + (key ? '&key=' + encodeURIComponent(key) : ''), '_blank');
+    M.textContent = ''; if (!cols()) { M.textContent = 'Tick at least one reading.'; return; } window.open('/api/datalog.html?from=' + F.value + '&to=' + T.value + '&cols=' + cols() + (key ? '&key=' + encodeURIComponent(key) : ''), '_blank');
   };
   $('dlGo').onclick = async () => {
     if (F.value && T.value && F.value > T.value) { M.textContent = 'The start date is after the end date.'; return; }
     M.textContent = 'Preparing...';
     for (let i = 0; i < 3; i++) {
-      const r = await fetch('/api/datalog.xlsx?from=' + F.value + '&to=' + T.value, { headers: { 'X-Log-Key': key } }).catch(() => null);
+      if (!cols()) { M.textContent = 'Tick at least one reading.'; return; }
+      const r = await fetch('/api/datalog.xlsx?from=' + F.value + '&to=' + T.value + '&cols=' + cols(), { headers: { 'X-Log-Key': key } }).catch(() => null);
       if (!r) { M.textContent = 'No connection.'; return; }
       if (r.status === 401) { const p = prompt(i ? 'Wrong password. Password for the data log:' : 'Password for the data log:'); if (p == null) { M.textContent = ''; return; } key = p; try { sessionStorage.setItem('logKey', p); } catch (_) {} continue; }
       if (!r.ok) { M.textContent = 'Download failed (' + r.status + ').'; return; }
