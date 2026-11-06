@@ -382,6 +382,9 @@ function xlsx(rows, widths) {
     ['xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>' + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>' + sheet + '</sheetData></worksheet>']
   ]);
 }
+// Set LOG_PASSWORD on Render to ask for a password before the Excel file is given (the live page stays open). Not set = open to everyone.
+const LOG_PASSWORD = E.LOG_PASSWORD || '';
+function beirutMidnight(d) { const u = Date.parse(d + 'T00:00:00Z'); for (const o of [2, 3, 4, 1]) { const t = u - o * 3600e3, b = bparts(t); if (b.day === d && b.hour === 0) return t; } return u - 2 * 3600e3; }
 const BZM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 function dataLogXlsx(from, to) {
   const f = t => { const p = {}; for (const x of BZM.formatToParts(new Date(t))) p[x.type] = x.value; return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute; };   // Lebanon time (summer and winter)
@@ -717,9 +720,12 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({ now: Date.now(), since: trackStart, level: fuelCur, total: fuelLog.length, list: list.slice(0, 300) }));
   }
-  if (url === '/api/datalog.xlsx') {       // hourly data log as an Excel file; ?days=N (default 31, 0 = everything)
-    const q = new URL(req.url, 'http://x').searchParams, d = q.has('days') ? +q.get('days') : 31, to = Date.now(), from = d > 0 ? to - d * DAY : 0;
-    const name = 'al-dhour-hourly-log-' + bparts(to).day + '.xlsx';
+  if (url === '/api/datalog.xlsx') {       // hourly data log as an Excel file; ?from=YYYY-MM-DD&to=YYYY-MM-DD (Lebanon days, both included)
+    const q = new URL(req.url, 'http://x').searchParams, H = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+    if (LOG_PASSWORD && (req.headers['x-log-key'] || q.get('key') || '') !== LOG_PASSWORD) { res.writeHead(401, H); return res.end(JSON.stringify({ error: 'password' })); }
+    const day = /^\d{4}-\d\d-\d\d$/, f = q.get('from'), t = q.get('to');
+    const from = f && day.test(f) ? beirutMidnight(f) : 0, to = t && day.test(t) ? beirutMidnight(t) + DAY - 1 : Date.now();
+    const name = 'al-dhour-hourly-log' + (f ? '-' + f : '') + (t ? '-to-' + t : '') + '.xlsx';
     res.writeHead(200, { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="' + name + '"' });
     return res.end(dataLogXlsx(from, to));
   }
