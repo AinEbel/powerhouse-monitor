@@ -380,7 +380,7 @@ function xlsx(rows, widths, o) {
     ['xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Hourly log" sheetId="1" r:id="rId1"/></sheets></workbook>'],
     ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
     ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="5"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="16"/><name val="Calibri"/></font><font><i/><sz val="10"/><color rgb="FF666666"/><name val="Calibri"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2B343B"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF3C4"/></patternFill></fill></fills><borders count="2"><border/><border><left style="thin"><color rgb="FFD0D6DB"/></left><right style="thin"><color rgb="FFD0D6DB"/></right><top style="thin"><color rgb="FFD0D6DB"/></top><bottom style="thin"><color rgb="FFD0D6DB"/></bottom></border></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="7"><xf/><xf fontId="1" applyFont="1"/><xf fontId="2" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf fontId="3" applyFont="1"/><xf fontId="1" fillId="3" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf fontId="4" applyFont="1"/><xf borderId="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf></cellXfs></styleSheet>'],
-    ['xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="5" topLeftCell="C6" activePane="bottomRight" state="frozen"/></sheetView></sheetViews><cols>' + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>' + sheet + '</sheetData>' + (o.merges && o.merges.length ? '<mergeCells count="' + o.merges.length + '">' + o.merges.map(m => '<mergeCell ref="' + m + '"/>').join('') + '</mergeCells>' : '') + '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>']
+    ['xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="4" topLeftCell="C5" activePane="bottomRight" state="frozen"/></sheetView></sheetViews><cols>' + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>' + sheet + '</sheetData>' + (o.merges && o.merges.length ? '<mergeCells count="' + o.merges.length + '">' + o.merges.map(m => '<mergeCell ref="' + m + '"/>').join('') + '</mergeCells>' : '') + '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>']
   ]);
 }
 // Set LOG_PASSWORD on Render to ask for a password before the Excel file is given (the live page stays open). Not set = open to everyone.
@@ -391,15 +391,15 @@ const BZM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'n
 function dataLogCols() {
   const kwhOf = (r, id) => r[id + 'Kwh'] != null ? r[id + 'Kwh'] : r[id + 'L'] != null ? r[id + 'L'] / GEN_LPKWH : null;
   const c = [];
-  gens.forEach((g, i) => { const n = i + 1, G = g.label;
-    c.push({ k: 'g' + n + 'kw', grp: G, label: 'kW (avg)', get: r => r[g.id] },
-           { k: 'g' + n + 'kwh', grp: G, label: 'kWh', get: r => kwhOf(r, g.id), sum: true },
-           { k: 'g' + n + 'fuel', grp: G, label: 'Fuel (L)', get: r => r[g.id + 'L'], sum: true }); });
-  c.push({ k: 'skw', grp: 'SOLAR', label: 'kW (avg)', get: r => r.solar },
-         { k: 'skwh', grp: 'SOLAR', label: 'kWh', get: r => r.solarKwh, sum: true },
-         { k: 'tkwh', grp: 'TOTAL', label: 'kWh (gen + solar)', get: r => { let t = 0, a = false; for (const g of gens) { const v = kwhOf(r, g.id); if (v != null) { t += v; a = true; } } if (r.solarKwh != null) { t += r.solarKwh; a = true; } return a ? t : null; }, sum: true },
-         { k: 'counter', grp: 'FUEL TANK', label: 'Refuelling counter', get: r => r.counter },
-         { k: 'tank', grp: 'FUEL TANK', label: 'Fuel in tank (L)', get: r => r.tank });
+  gens.forEach((g, i) => { const n = i + 1, G = 'Gen' + n;
+    c.push({ k: 'g' + n + 'kw', grp: G, label: G + ' kW', get: r => r[g.id] },
+           { k: 'g' + n + 'kwh', grp: G, label: G + ' kWh', get: r => kwhOf(r, g.id), sum: true },
+           { k: 'g' + n + 'fuel', grp: G, label: G + ' FL', get: r => r[g.id + 'L'], sum: true }); });
+  c.push({ k: 'skw', grp: 'Solar', label: 'Solar kW', get: r => r.solar },
+         { k: 'skwh', grp: 'Solar', label: 'Solar kWh', get: r => r.solarKwh, sum: true },
+         { k: 'tkwh', grp: 'Total', label: 'Total kWh', get: r => { let t = 0, a = false; for (const g of gens) { const v = kwhOf(r, g.id); if (v != null) { t += v; a = true; } } if (r.solarKwh != null) { t += r.solarKwh; a = true; } return a ? t : null; }, sum: true },
+         { k: 'counter', grp: 'Tank', label: 'Refuel counter', get: r => r.counter },
+         { k: 'tank', grp: 'Tank', label: 'Tank L', get: r => r.tank });
   return c;
 }
 function dataLogRows(from, to, pick) {
@@ -416,19 +416,16 @@ function dataLogRows(from, to, pick) {
 function dataLogXlsx(from, to, pick, period) {
   const d = dataLogRows(from, to, pick), cols = d.cols.length + 2;
   const cap = cfg.site.tankLitres ? ' · Tank capacity ' + cfg.site.tankLitres.toLocaleString('en-US') + ' L' : '';
-  const rows = [[d.site], ['Hourly data log · ' + period + cap], [], ['Date', 'Hour', ...d.cols.map(c => c.grp)], ['', '', ...d.cols.map(c => c.label)],
+  const rows = [[d.site], ['Hourly data log · ' + period + cap], [], ['Date', 'Hour', ...d.cols.map(c => c.label)],
     ...d.rows.map(r => [r.d, r.h, ...r.v]), ['TOTAL', d.rows.length + ' h', ...d.total]];
-  const merges = ['A4:A5', 'B4:B5'], L = i => { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
-  for (let i = 0; i < d.cols.length;) { let j = i; while (j + 1 < d.cols.length && d.cols[j + 1].grp === d.cols[i].grp) j++; if (j > i) { merges.push(L(i + 2) + '4:' + L(j + 2) + '4'); for (let k = i + 1; k <= j; k++) rows[3][k + 2] = ''; } i = j + 1; }
-  rows[4][0] = rows[4][1] = '';
-  return xlsx(rows, [13, 9, ...d.cols.map(c => Math.max(14, c.label.length + 4))], { title: 1, head: [4, 5], total: rows.length, cols, merges });
+  return xlsx(rows, [12, 8, ...d.cols.map(c => Math.max(10, c.label.length + 3))], { title: 1, head: [4], total: rows.length, cols });
 }
 // The same log as a page to read in the browser: pick the readings to show, search a date or hour, Print / Save as PDF.
 function dataLogHtml(from, to, pick, period, qs) {
   const d = dataLogRows(from, to, dataLogCols().map(c => c.k)), on = new Set(pick && pick.length ? pick : d.cols.map(c => c.k));
   const esc = x => x == null ? '' : String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'), n = x => x == null ? '–' : typeof x === 'number' ? x.toLocaleString('en-US', { maximumFractionDigits: 1 }) : esc(x);
   const groups = []; for (const c of d.cols) { const g = groups[groups.length - 1]; if (g && g.name === c.grp) g.cols.push(c); else groups.push({ name: c.grp, cols: [c] }); }
-  const cards = d.cols.filter(c => c.sum).map(c => `<div class="card" data-k="${c.k}"><span>${esc(c.grp)}</span><b>${n(d.total[d.cols.indexOf(c)])}</b><i>${esc(c.label)}</i></div>`).join('');
+  const cards = d.cols.filter(c => c.sum).map(c => `<div class="card" data-k="${c.k}"><span>${esc(c.label)}</span><b>${n(d.total[d.cols.indexOf(c)])}</b></div>`).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(d.site)} - data log</title><style>
 *{box-sizing:border-box}body{font:14px/1.45 "Segoe UI",Arial,Helvetica,sans-serif;margin:0;color:#1d2328;background:#f4f6f8}
 header{background:#1d2328;color:#fff;padding:18px 24px;border-bottom:4px solid #ffc21a}header h1{margin:0;font-size:24px;letter-spacing:.06em}header p{margin:4px 0 0;color:#c7d0d6}
@@ -438,25 +435,24 @@ main{padding:16px 24px}.cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom
 .bar input[type=search]{font-size:15px;padding:7px 10px;border:1px solid #b9c3ca;border-radius:4px;min-width:230px}.bar button{font-size:15px;padding:8px 16px;border:0;border-radius:4px;background:#ffc21a;font-weight:700;cursor:pointer;margin-left:auto}
 .picks{display:flex;flex-wrap:wrap;gap:6px 14px}.picks fieldset{border:0;margin:0;padding:0;display:flex;gap:8px;align-items:center}.picks legend{float:left;font-weight:700;font-size:12px;letter-spacing:.06em;margin-right:4px}.picks label{font-size:13px;white-space:nowrap;cursor:pointer}
 .wrap{overflow:auto;max-height:calc(100vh - 290px);background:#fff;border:1px solid #dde3e8;border-radius:6px}
-table{border-collapse:collapse;width:100%}th,td{padding:6px 12px;text-align:center;white-space:nowrap;border-bottom:1px solid #e6eaee}
-thead th{background:#2b343b;color:#fff;font-weight:600;position:sticky;z-index:1}thead tr:first-child th{top:0;background:#1d2328;letter-spacing:.08em;font-size:12px}thead tr:nth-child(2) th{top:31px;font-size:12px}
+table{border-collapse:collapse;width:100%}th,td{padding:5px 10px;font-size:13px;text-align:center;white-space:nowrap;border-bottom:1px solid #e6eaee}
+thead th{background:#2b343b;color:#fff;font-weight:600;position:sticky;z-index:1}thead th{top:0;font-size:12.5px}
 th.g,td.g{border-left:2px solid #c9d1d7}tbody tr:nth-child(even) td{background:#f7f9fa}tbody tr:hover td{background:#fff6d6}td.d{font-weight:600}
 tfoot td{font-weight:700;background:#fff3c4;position:sticky;bottom:0;border-top:2px solid #ffc21a}.note{color:#6b7a85;font-size:12px;margin-top:8px}.off{display:none}
 @media print{body{background:#fff;font-size:9px}header{padding:6px 0;background:#fff;color:#000;border-bottom:2px solid #000}header p{color:#333}main{padding:6px 0}.bar{display:none}.wrap{max-height:none;overflow:visible;border:0}
-thead th,tfoot td{position:static}thead th{background:#ddd!important;color:#000}thead tr:first-child th{background:#ccc!important}th,td{padding:2px 5px}.card{padding:4px 8px;min-width:0}.card b{font-size:13px}@page{size:A4 landscape;margin:8mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+thead th,tfoot td{position:static}thead th{background:#ddd!important;color:#000}th,td{padding:2px 5px}.card{padding:4px 8px;min-width:0}.card b{font-size:13px}@page{size:A4 landscape;margin:8mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body><header><h1>${esc(d.site)}</h1><p>Hourly data log · ${esc(period)} · ${d.rows.length} hours${cfg.site.tankLitres ? ' · Tank capacity ' + cfg.site.tankLitres.toLocaleString('en-US') + ' L' : ''}</p></header><main>
 <div class="cards">${cards}</div>
-<div class="bar"><div class="picks">${groups.map(g => `<fieldset><legend>${esc(g.name)}</legend>${g.cols.map(c => `<label><input type="checkbox" data-k="${c.k}"${on.has(c.k) ? ' checked' : ''}> ${esc(c.label)}</label>`).join('')}</fieldset>`).join('')}</div>
+<div class="bar"><div class="picks">${groups.map(g => `<fieldset><legend>${esc(g.name)}</legend>${g.cols.map(c => `<label><input type="checkbox" data-k="${c.k}"${on.has(c.k) ? ' checked' : ''}> ${esc(c.label.replace(c.grp + ' ', ''))}</label>`).join('')}</fieldset>`).join('')}</div>
 <input type="search" id="q" placeholder="Search a date or hour, e.g. 2026-11-05 14:00"><span id="c"></span><button onclick="print()">Print / Save as PDF</button></div>
-<div class="wrap"><table><thead><tr><th rowspan="2">Date</th><th rowspan="2">Hour</th>${groups.map(g => `<th class="g" colspan="${g.cols.length}" data-grp="${esc(g.name)}">${esc(g.name)}</th>`).join('')}</tr>
-<tr>${d.cols.map((c, i) => `<th data-k="${c.k}"${i === 0 || d.cols[i - 1].grp !== c.grp ? ' class="g"' : ''}>${esc(c.label)}</th>`).join('')}</tr></thead>
+<div class="wrap"><table><thead><tr><th>Date</th><th>Hour</th>${d.cols.map((c, i) => `<th data-k="${c.k}"${i === 0 || d.cols[i - 1].grp !== c.grp ? ' class="g"' : ''}>${esc(c.label)}</th>`).join('')}</tr></thead>
 <tbody id="b">${d.rows.map(r => `<tr><td class="d">${r.d}</td><td>${r.h}</td>${r.v.map((v, i) => `<td data-k="${d.cols[i].k}"${i === 0 || d.cols[i - 1].grp !== d.cols[i].grp ? ' class="g"' : ''}>${n(v)}</td>`).join('')}</tr>`).join('')}</tbody>
 <tfoot><tr><td>TOTAL</td><td>${d.rows.length} h</td>${d.total.map((v, i) => `<td data-k="${d.cols[i].k}"${i === 0 || d.cols[i - 1].grp !== d.cols[i].grp ? ' class="g"' : ''}>${v == null ? '' : n(v)}</td>`).join('')}</tr></tfoot></table></div>
 </main>
 <script>
 const boxes=[...document.querySelectorAll('.picks input')],rs=[...document.getElementById('b').rows],q=document.getElementById('q'),c=document.getElementById('c');
 function cols(){const on=new Set(boxes.filter(b=>b.checked).map(b=>b.dataset.k));document.querySelectorAll('[data-k]').forEach(e=>{if(e.tagName!=='INPUT')e.classList.toggle('off',!on.has(e.dataset.k));});
- document.querySelectorAll('th[data-grp]').forEach(th=>{const n=boxes.filter(b=>b.checked&&b.closest('fieldset').querySelector('legend').textContent===th.dataset.grp).length;th.colSpan=Math.max(1,n);th.classList.toggle('off',!n);});}
+}
 boxes.forEach(b=>b.onchange=cols);cols();
 q.oninput=()=>{const s=q.value.trim().toLowerCase();let k=0;for(const r of rs){const ok=!s||(r.cells[0].textContent+' '+r.cells[1].textContent).toLowerCase().includes(s);r.style.display=ok?'':'none';if(ok)k++;}c.textContent=s?k+' of '+rs.length+' hours':'';};
 </script></body></html>`;
