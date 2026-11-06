@@ -325,7 +325,7 @@ const hourStart = t => Math.floor(t / 3600e3) * 3600e3;            // Lebanon is
 function dlogAdd(row) { const i = dlog.findIndex(r => r.t === row.t); if (i >= 0) return false; dlog.push(row); dlog.sort((a, b) => a.t - b.t); return true; }
 function dlogClose(a) {
   const n = a.n || 1, row = { t: a.h };
-  for (const g of gens) { row[g.id] = +(a.kw[g.id] / n).toFixed(1); row[g.id + 'L'] = +(a.kwh[g.id] * GEN_LPKWH).toFixed(1); }
+  for (const g of gens) { row[g.id] = +(a.kw[g.id] / n).toFixed(1); row[g.id + 'Kwh'] = +a.kwh[g.id].toFixed(1); row[g.id + 'L'] = +(a.kwh[g.id] * GEN_LPKWH).toFixed(1); }
   row.solar = +(a.kw.solar / n).toFixed(1); row.solarKwh = +a.kwh.solar.toFixed(1); row.counter = a.counter; row.tank = a.tank;
   dlogAdd(row); fs.writeFile(DLOG_FILE, JSON.stringify(dlog), () => {});
 }
@@ -368,10 +368,10 @@ function zip(files) {
   const cd = Buffer.concat(cen), e = Buffer.alloc(22); e.writeUInt32LE(0x06054b50, 0); e.writeUInt16LE(files.length, 8); e.writeUInt16LE(files.length, 10); e.writeUInt32LE(cd.length, 12); e.writeUInt32LE(off, 16);
   return Buffer.concat([...parts, cd, e]);
 }
-function xlsx(rows, widths) {
+function xlsx(rows, widths, boldRow) {
   const esc = x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const col = i => { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
-  const sheet = rows.map((r, ri) => '<row r="' + (ri + 1) + '">' + r.map((v, ci) => { const ref = col(ci) + (ri + 1), st = ri < 3 ? ' s="1"' : '';
+  const sheet = rows.map((r, ri) => '<row r="' + (ri + 1) + '">' + r.map((v, ci) => { const ref = col(ci) + (ri + 1), st = ri < 3 || ri + 1 === boldRow ? ' s="1"' : '';
     return v == null || v === '' ? '' : typeof v === 'number' && isFinite(v) ? '<c r="' + ref + '"' + st + '><v>' + v + '</v></c>' : '<c r="' + ref + '" t="inlineStr"' + st + '><is><t>' + esc(v) + '</t></is></c>'; }).join('') + '</row>').join('');
   return zip([
     ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
@@ -388,16 +388,24 @@ function beirutMidnight(d) { const u = Date.parse(d + 'T00:00:00Z'); for (const 
 const BZM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 function dataLogRows(from, to) {
   const f = t => { const p = {}; for (const x of BZM.formatToParts(new Date(t))) p[x.type] = x.value; return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute; };   // Lebanon time (summer and winter)
+  const r1 = x => x == null ? null : Math.round(x * 10) / 10;
   const head = ['Hour (Lebanon time)', 'Site'];
-  for (const g of gens) head.push(g.label + ' kW (avg)', g.label + ' fuel (L)');
-  head.push('Solar kW (avg)', 'Solar production (kWh)', 'Refuelling counter', 'Fuel in tank (L)', 'Tank capacity (L)');
-  const site = 'AL DHOUR POWER HOUSE', cap = cfg.site.tankLitres || null, rows = [];
-  for (const r of dlog) if (r.t >= from && r.t <= to) { const row = [f(r.t) + (r.backfill ? ' *' : ''), site]; for (const g of gens) row.push(r[g.id], r[g.id + 'L']); row.push(r.solar, r.solarKwh, r.counter, r.tank, cap); rows.push(row); }
-  return { site, head, rows, note: 'Generator fuel = generator kWh x ' + GEN_LPKWH + ' L/kWh. Rows marked * were rebuilt from the chart data (no counter reading).' };
+  for (const g of gens) head.push(g.label + ' kW (avg)', g.label + ' kWh', g.label + ' fuel (L)');
+  head.push('Solar kW (avg)', 'Solar production (kWh)', 'Total kWh (generators + solar)', 'Refuelling counter', 'Fuel in tank (L)', 'Tank capacity (L)');
+  const site = 'AL DHOUR POWER HOUSE', cap = cfg.site.tankLitres || null, rows = [], sum = {};
+  const add = (k, v) => { if (v != null) sum[k] = (sum[k] || 0) + v; };
+  for (const r of dlog) if (r.t >= from && r.t <= to) {
+    const row = [f(r.t) + (r.backfill ? ' *' : ''), site]; let tot = 0, any = false;
+    for (const g of gens) { const kwh = r[g.id + 'Kwh'] != null ? r[g.id + 'Kwh'] : r[g.id + 'L'] != null ? r[g.id + 'L'] / GEN_LPKWH : null; row.push(r[g.id], r1(kwh), r[g.id + 'L']); if (kwh != null) { tot += kwh; any = true; } add(g.id + 'Kwh', kwh); add(g.id + 'L', r[g.id + 'L']); }
+    if (r.solarKwh != null) { tot += r.solarKwh; any = true; } add('solarKwh', r.solarKwh); add('tot', any ? tot : null);
+    row.push(r.solar, r.solarKwh, any ? r1(tot) : null, r.counter, r.tank, cap); rows.push(row);
+  }
+  const total = ['TOTAL', rows.length + ' hours']; for (const g of gens) total.push(null, r1(sum[g.id + 'Kwh']), r1(sum[g.id + 'L'])); total.push(null, r1(sum.solarKwh), r1(sum.tot), null, null, null);
+  return { site, head, rows, total, note: 'Generator fuel = generator kWh x ' + GEN_LPKWH + ' L/kWh. Rows marked * were rebuilt from the chart data (no counter reading).' };
 }
 function dataLogXlsx(from, to) {
   const d = dataLogRows(from, to);
-  return xlsx([[d.site + ' - hourly data log'], [d.note], d.head, ...d.rows], [20, 24, ...gens.flatMap(() => [20, 20]), 16, 22, 18, 16, 16]);
+  return xlsx([[d.site + ' - hourly data log'], [d.note], d.head, ...d.rows, d.total], [20, 24, ...gens.flatMap(() => [20, 16, 20]), 16, 22, 26, 18, 16, 16], d.rows.length + 4);
 }
 // The same log as a page to read in the browser: search box, and Print / Save as PDF.
 function dataLogHtml(from, to, title) {
@@ -407,10 +415,14 @@ body{font:14px/1.4 Arial,Helvetica,sans-serif;margin:16px;color:#111;background:
 .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0;position:sticky;top:0;background:#fff;padding:6px 0}
 input{font-size:15px;padding:7px 10px;border:1px solid #aaa;border-radius:4px;min-width:240px}button{font-size:15px;padding:7px 14px;border:0;border-radius:4px;background:#ffc21a;font-weight:700;cursor:pointer}
 .wrap{overflow:auto;max-height:calc(100vh - 140px);border:1px solid #ccc}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 7px;text-align:right;white-space:nowrap}th{background:#f1f1f1;position:sticky;top:0;z-index:1}td:first-child,td:nth-child(2),th:first-child,th:nth-child(2){text-align:left}tr:nth-child(even) td{background:#fafafa}
-@media print{.bar{display:none}body{margin:0;font-size:10px}th{position:static}.wrap{max-height:none;overflow:visible;border:0}@page{size:A4 landscape;margin:10mm}}
+.sum{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px}.sum div{border:1px solid #ddd;border-radius:4px;padding:6px 10px;min-width:120px}.sum span{display:block;font-size:11px;color:#666;text-transform:uppercase}.sum b{font-size:18px}
+tfoot td{font-weight:700;background:#fff3c4!important;position:sticky;bottom:0}
+@media print{.bar{display:none}body{margin:0;font-size:8px}th,tfoot td{position:static}th,td{padding:2px 4px}tfoot{display:table-row-group}.sum{border-color:#999}.wrap{max-height:none;overflow:visible;border:0}@page{size:A4 landscape;margin:10mm}}
 </style></head><body><h1>${esc(d.site)} - hourly data log</h1><p>${esc(title)} · ${d.rows.length} hours. ${esc(d.note)}</p>
+<div class="sum">${(() => { const t = d.total, gi = k => 2 + k * 3, L = gens.length, kw = [...gens.map((g, k) => [g.label + ' kWh', t[gi(k) + 1]]), ['Solar kWh', t[2 + L * 3 + 1]], ['TOTAL kWh', t[2 + L * 3 + 2]], ...gens.map((g, k) => [g.label + ' fuel (L)', t[gi(k) + 2]])];
+  return kw.map(([l, v]) => '<div><span>' + esc(l) + '</span><b>' + n(v) + '</b></div>').join(''); })()}</div>
 <div class="bar"><input id="q" placeholder="Search a date or time, e.g. 2026-11-05 14:00" autofocus><span id="c"></span><button onclick="print()">Print / Save as PDF</button></div>
-<div class="wrap"><table><thead><tr>${d.head.map(h => '<th>' + esc(h) + '</th>').join('')}</tr></thead><tbody id="b">${d.rows.map(r => '<tr>' + r.map(v => '<td>' + n(v) + '</td>').join('') + '</tr>').join('')}</tbody></table></div>
+<div class="wrap"><table><thead><tr>${d.head.map(h => '<th>' + esc(h) + '</th>').join('')}</tr></thead><tbody id="b">${d.rows.map(r => '<tr>' + r.map(v => '<td>' + n(v) + '</td>').join('') + '</tr>').join('')}</tbody><tfoot><tr>${d.total.map(v => '<td>' + n(v) + '</td>').join('')}</tr></tfoot></table></div>
 <script>const q=document.getElementById('q'),rs=[...document.getElementById('b').rows],c=document.getElementById('c');q.oninput=()=>{const s=q.value.trim().toLowerCase();let k=0;for(const r of rs){const ok=!s||r.textContent.toLowerCase().includes(s);r.style.display=ok?'':'none';if(ok)k++;}c.textContent=s?k+' of '+rs.length+' hours':'';};</script></body></html>`;
 }
 // KWH/L can be started again by hand (tap on the KWH/L box): only the ratio's starting point moves, kWh today and fuel today are never touched.
