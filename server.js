@@ -326,7 +326,7 @@ function dlogAdd(row) { const i = dlog.findIndex(r => r.t === row.t); if (i >= 0
 function dlogClose(a) {
   const n = a.n || 1, row = { t: a.h };
   for (const g of gens) { row[g.id] = +(a.kw[g.id] / n).toFixed(1); row[g.id + 'Kwh'] = +a.kwh[g.id].toFixed(1); row[g.id + 'L'] = +(a.kwh[g.id] * GEN_LPKWH).toFixed(1); }
-  row.solar = +(a.kw.solar / n).toFixed(1); row.solarKwh = +a.kwh.solar.toFixed(1); row.counter = a.counter; row.tank = a.tank;
+  row.solar = +(a.kw.solar / n).toFixed(1); row.solarKwh = +a.kwh.solar.toFixed(1); row.counter = a.counter; row.tank = a.tank; { const c = tempFor(a.h); row.temp = c != null ? c : wNow && Date.now() - wNow.t < 3 * 3600e3 ? wNow.c : null; }
   dlogAdd(row); fs.writeFile(DLOG_FILE, JSON.stringify(dlog), () => {});
 }
 function trackDataLog(v) {
@@ -339,6 +339,29 @@ function trackDataLog(v) {
   if (v.fuel_counter != null && isFinite(v.fuel_counter)) dAcc.counter = +v.fuel_counter;
   if (v.fuel_l != null && isFinite(v.fuel_l)) dAcc.tank = Math.round(v.fuel_l);
 }
+// Outside temperature (no sensor on the FBox): free hourly weather data from open-meteo.com for the site's location.
+// Every 30 minutes the last days are read and each logged hour that has no temperature yet gets one (nothing is ever replaced).
+const W_LAT = +(E.WEATHER_LAT || (cfg.site.lat ?? 33.1104)), W_LON = +(E.WEATHER_LON || (cfg.site.lon ?? 35.4013)), W_URL = E.WEATHER_URL || 'https://api.open-meteo.com/v1/forecast';
+let wHours = new Map(), wNow = null, wErr = null;
+async function weatherPoll() {
+  if (E.WEATHER === 'off') return;
+  try {
+    const days = dlog.some(r => r.temp == null && Date.now() - r.t < 92 * DAY) ? 92 : 2;
+    const r = await fetch(W_URL + '?latitude=' + W_LAT + '&longitude=' + W_LON + '&hourly=temperature_2m&current=temperature_2m&past_days=' + days + '&forecast_days=1&timeformat=unixtime&timezone=GMT', { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw new Error('weather answered ' + r.status);
+    const j = await r.json(), t = j.hourly && j.hourly.time, v = j.hourly && j.hourly.temperature_2m;
+    if (!Array.isArray(t) || !Array.isArray(v)) throw new Error('weather: no hourly data');
+    t.forEach((x, i) => { if (v[i] != null && isFinite(v[i])) wHours.set(x * 1000, +v[i]); });
+    if (j.current && isFinite(j.current.temperature_2m)) wNow = { t: Date.now(), c: +j.current.temperature_2m };
+    let n = 0;
+    for (const row of dlog) if (row.temp == null) { const c = tempFor(row.t); if (c != null) { row.temp = c; n++; } }
+    if (n) fs.writeFile(DLOG_FILE, JSON.stringify(dlog), () => {});
+    wErr = null;
+  } catch (e) { wErr = e.message; console.error('weather', e.message); }
+}
+// The log hour 14:00 covers 14:00-15:00: use the average of the readings at 14:00 and 15:00 (or whichever exists).
+function tempFor(h) { const a = wHours.get(h), b = wHours.get(h + 3600e3), x = [a, b].filter(z => z != null); return x.length ? Math.round(x.reduce((p, q) => p + q, 0) / x.length * 10) / 10 : null; }
+setTimeout(() => { weatherPoll(); setInterval(weatherPoll, 30 * 60000); }, 20000);
 // First start with an empty log: fill it from the chart samples already recorded (one a minute, last 30 days). No refuelling counter in those.
 function dlogFromHistory() {
   if (dlog.length || !history.length) return;
@@ -353,7 +376,7 @@ function dlogFromHistory() {
   }
   dlog.sort((a, b) => a.t - b.t); fs.writeFile(DLOG_FILE, JSON.stringify(dlog), () => {});
 }
-function mergeDataLog(list) { let n = 0; if (Array.isArray(list)) for (const r of list) if (r && isFinite(r.t) && dlogAdd(r)) n++; return n; }
+function mergeDataLog(list) { let n = 0; if (Array.isArray(list)) for (const r of list) if (r && isFinite(r.t)) { if (dlogAdd(r)) n++; else if (r.temp != null) { const o = dlog.find(x => x.t === r.t); if (o && o.temp == null) o.temp = r.temp; } } return n; }
 // A real .xlsx file, built without extra packages: a zip (stored, no compression) of the few XML parts Excel needs.
 const CRC_T = (() => { const t = new Int32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
 function crc32(b) { let c = -1; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; }
@@ -398,6 +421,7 @@ function dataLogCols() {
   c.push({ k: 'skw', grp: 'Solar', label: 'Solar kW', get: r => r.solar },
          { k: 'skwh', grp: 'Solar', label: 'Solar kWh', get: r => r.solarKwh, sum: true },
          { k: 'tkwh', grp: 'Total', label: 'Total kWh', get: r => { let t = 0, a = false; for (const g of gens) { const v = kwhOf(r, g.id); if (v != null) { t += v; a = true; } } if (r.solarKwh != null) { t += r.solarKwh; a = true; } return a ? t : null; }, sum: true },
+         { k: 'temp', grp: 'Weather', label: 'Out °C', get: r => r.temp },
          { k: 'counter', grp: 'Tank', label: 'Refuel counter', get: r => r.counter },
          { k: 'tank', grp: 'Tank', label: 'Tank L', get: r => r.tank });
   return c;
@@ -902,7 +926,7 @@ const server = http.createServer((req, res) => {
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })), solar: SOLAR ? { id: SOLAR.id, label: SOLAR.label, kwp: SOLAR.kwp || null } : null,
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
-      online: onlineCount(), solarTotal: { kwh: +sol.kwh.toFixed(2), since: sol.since, kw: +solarKw(state.values || {}).toFixed(1) }, fuelToday: fuelToday(), genFuel: genFuel(state.values), alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
+      online: onlineCount(), solarTotal: { kwh: +sol.kwh.toFixed(2), since: sol.since, kw: +solarKw(state.values || {}).toFixed(1) }, fuelToday: fuelToday(), genFuel: genFuel(state.values), outside: wNow ? { c: wNow.c, t: wNow.t } : null, alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
     }));
   }
   const file = path.join(__dirname, 'public', url === '/' ? 'index.html' : url);
