@@ -298,6 +298,39 @@ function trackGenFuel(v) {
   }
   if (now - gfSaved > 60e3) { gfSaved = now; fs.writeFile(GF_FILE, JSON.stringify(gf), () => {}); }
 }
+// AL MAHFARA generators: the same counting, but completely separate from Al Dhour (own file, own counters, own backup part).
+const MH_GF_FILE = path.join(__dirname, 'mh_gen_fuel.json'), MH_GF = [{ id: 'm1', key: 'm1' }, { id: 'm2', key: 'm2' }];
+let mgf = {}, mgfLast = {}, mgfSaved = 0;
+try { const j = JSON.parse(fs.readFileSync(MH_GF_FILE, 'utf8')); if (j && typeof j === 'object') mgf = j; } catch (_) {}
+function mgfOf(id) { return mgf[id] = mgf[id] || { total: 0, months: {}, since: null }; }
+function mhMergeGenFuel(j) {                                // keep the bigger value, so a count can never go down
+  if (!j || typeof j !== 'object') return 0;
+  let n = 0;
+  for (const [id, x] of Object.entries(j)) {
+    if (!x || !MH_GF.some(g => g.id === id)) continue;
+    const r = mgfOf(id); n++;
+    if (isFinite(x.total) && x.total >= 0) r.total = Math.max(r.total, +x.total);
+    for (const [k, v] of Object.entries(x.months || {})) if (/^\d{4}-\d\d$/.test(k) && isFinite(v) && v >= 0) r.months[k] = Math.max(r.months[k] || 0, +v);
+    if (x.since && (!r.since || x.since < r.since)) r.since = +x.since;
+  }
+  fs.writeFileSync(MH_GF_FILE, JSON.stringify(mgf));
+  return n;
+}
+function mhTrackGenFuel(v) {
+  const now = Date.now(), mk = bparts(now).day.slice(0, 7);
+  for (const g of MH_GF) {
+    const kw = Math.max(0, +v[g.key + '.kw'] || 0), r = mgfOf(g.id), l = mgfLast[g.id];
+    if (!r.since) r.since = now;
+    if (l && now - l.t < 120e3) { const L = (kw + l.kw) / 2 * (now - l.t) / 3600e3 * GEN_LPKWH; r.total += L; r.months[mk] = (r.months[mk] || 0) + L; }
+    mgfLast[g.id] = { t: now, kw };
+  }
+  if (now - mgfSaved > 60e3) { mgfSaved = now; fs.writeFile(MH_GF_FILE, JSON.stringify(mgf), () => {}); }
+}
+function mhGenFuel(v) {
+  const [y, m] = bparts(Date.now()).day.split('-').map(Number), cur = y + '-' + String(m).padStart(2, '0'), prev = (m < 2 ? y - 1 : y) + '-' + String(m < 2 ? 12 : m - 1).padStart(2, '0');
+  return { lpkwh: GEN_LPKWH, month: cur, lastMonth: prev, gens: Object.fromEntries(MH_GF.map(g => { const r = mgfOf(g.id), kw = Math.max(0, +(v || {})[g.key + '.kw'] || 0);
+    return [g.key, { lph: +(kw * GEN_LPKWH).toFixed(1), month: +(r.months[cur] || 0).toFixed(1), lastMonth: r.months[prev] != null ? +r.months[prev].toFixed(1) : null, total: +r.total.toFixed(1), since: r.since }]; })) };
+}
 function genFuel(v) {
   const [y, m] = bparts(Date.now()).day.split('-').map(Number), cur = y + '-' + String(m).padStart(2, '0'), prev = (m < 2 ? y - 1 : y) + '-' + String(m < 2 ? 12 : m - 1).padStart(2, '0');
   return { lpkwh: GEN_LPKWH, month: cur, lastMonth: prev, gens: Object.fromEntries(gens.map(g => { const r = gfOf(g.id), kw = Math.max(0, +(v || {})[g.id + '.kw'] || 0);
@@ -568,7 +601,7 @@ async function mhPoll() {
     if (!Object.keys(values).length && firstErr) throw new Error(firstErr);
     ['m1', 'm2'].forEach(id => { if (values[id + '.hrs'] != null) values[id + '.hours'] = values[id + '.hrs'] + (values[id + '.mn'] || 0) / 60; });
     mh = { conn, updated: Date.now(), values, error: null };
-    mhTrack(values);
+    mhTrack(values); mhTrackGenFuel(values);
     const last = mhHist[mhHist.length - 1];
     if (!last || Date.now() - last.t >= 60000) {
       const pt = { t: Date.now(), fuel: values.fuel_l ?? null, m1: values['m1.kw'] ?? null, m2: values['m2.kw'] ?? null };
@@ -712,6 +745,7 @@ function mergeAll(j) {
   if (j.alarm != null && isFinite(j.alarm) && j.alarm >= 0 && !fs.existsSync(ALARM_FILE)) { alarmL = +j.alarm; fs.writeFileSync(ALARM_FILE, JSON.stringify({ litres: alarmL })); out.alarm = alarmL; }
   if (j.mh) {
     out.mh = mhMergeCounters(j.mh) || {};
+    if (j.mh.gf) out.mh.genFuel = mhMergeGenFuel(j.mh.gf);
     if (Array.isArray(j.mh.hist)) { const n = mhHist.length; mhHist = mergeList(mhHist, j.mh.hist, h => Math.floor(h.t / 60000), Infinity).filter(h => Date.now() - h.t < DAY); out.mh.hist = mhHist.length - n; }
   }
   // the counter files are written straight away, so a restart right after this keeps everything
@@ -721,7 +755,7 @@ function mergeAll(j) {
 }
 // Everything that is recorded, in one file (Al Dhour and Al Mahfara). The next version reads this from the running one before it goes online.
 function exportAll() {
-  return { v: 2, t: Date.now(), cons, mon, sol, gf, dlog, refuels, fuelLog, history, alarm: alarmL, mh: { cons: mcons, mon: mmon, sol: msol, hist: mhHist } };
+  return { v: 2, t: Date.now(), cons, mon, sol, gf, dlog, refuels, fuelLog, history, alarm: alarmL, mh: { cons: mcons, mon: mmon, sol: msol, gf: mgf, hist: mhHist } };
 }
 // Hand-over on Render: a new version is started next to the running one and only gets the visitors once it listens on its port.
 // So before listening, it copies all the recorded data from the running version through the public address.
@@ -898,7 +932,7 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (url === '/api/mahfara/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons: mcons, mon: mmon, sol: msol })); }
+  if (url === '/api/mahfara/backup') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ t: Date.now(), cons: mcons, mon: mmon, sol: msol, gf: mgf })); }
   if (url === '/api/mahfara/restore' && req.method === 'POST') {
     let body = ''; req.on('data', d => { body += d; if (body.length > 3e7) req.destroy(); });
     req.on('end', () => {
@@ -914,7 +948,7 @@ const server = http.createServer((req, res) => {
   if (url === '/api/mahfara/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     const ok = cfg.mode === 'fbox';
-    return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), solarTotal: { kwh: +msol.kwh.toFixed(2), since: msol.since, kw: +Math.max(0, mh.values['solar.kw'] || 0).toFixed(1) }, now: Date.now() }));
+    return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), genFuel: mhGenFuel(mh.values), solarTotal: { kwh: +msol.kwh.toFixed(2), since: msol.since, kw: +Math.max(0, mh.values['solar.kw'] || 0).toFixed(1) }, now: Date.now() }));
   }
   if (url === '/api/status') {
     const vid = (new URL(req.url, 'http://x').searchParams.get('v') || '');
