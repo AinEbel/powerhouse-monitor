@@ -48,6 +48,7 @@ h2::before{content:"";width:6px;height:17px;background:var(--yellow);flex:none}
 .big{font-family:"Share Tech Mono",monospace;color:var(--fuel);text-shadow:0 0 10px rgba(255,159,26,.45);font-size:54px;line-height:1;letter-spacing:.02em}
 .gens .big{color:#3ddc84;text-shadow:0 0 10px rgba(61,220,132,.4)}
 .rd{margin-top:14px}
+.dlbtns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.dlbtn{font-family:'Barlow Condensed';font-size:15px;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;color:#111;background:var(--yellow);padding:8px 16px;border-radius:3px;font-weight:700}.dlbtn:hover{filter:brightness(1.1)}
 .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}.dtile>span{display:block;font-family:"Barlow Condensed";font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--steel);margin-bottom:4px}.dtile .lcd{display:block;padding:7px 11px 5px}.dtile b{font-family:"Share Tech Mono",monospace;font-size:24px;font-weight:400}.dtile.wide{grid-column:1/-1}.dtile.wide .lcd{text-align:center;padding:9px 11px 7px}.dtile.wide b{font-size:30px}
 .gfuel{margin-top:14px;font-size:18px;table-layout:fixed}.gfuel th,.gfuel td{text-align:center!important;padding-left:2px;padding-right:2px}
 .lcd small{font-family:"Barlow Condensed";font-size:20px;color:var(--steel);margin-left:8px;letter-spacing:.06em;text-transform:uppercase}
@@ -270,6 +271,9 @@ footer{margin-top:14px;font-size:13px;color:var(--steel);letter-spacing:.04em}
     </section>
   </div>
   </div>
+
+  <section class="panel dlogp"><h2>Data logger</h2><div class="sub">One line per hour: Generator 1 and 2 kW and fuel, solar kW and kWh, refuelling counter, fuel in tank and tank capacity.</div>
+    <div class="dlbtns"><a class="dlbtn" href="/api/datalog.xlsx?days=1" download>Last 24 hours</a><a class="dlbtn" href="/api/datalog.xlsx?days=7" download>Last 7 days</a><a class="dlbtn" href="/api/datalog.xlsx?days=31" download>Last month</a><a class="dlbtn" href="/api/datalog.xlsx?days=0" download>Everything</a></div></section>
 
   <section class="panel" id="hourlyp" style="display:none"><h2>Fuel used per hour</h2><div class="sub" id="hourlysum"></div><div class="tscroll"><table class="stats" id="hourly"></table></div></section>
 

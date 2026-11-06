@@ -315,6 +315,85 @@ function mergeGenFuel(j) {                                  // restore / hand-ov
   }
   return n;
 }
+// ---------- Hourly data logger (Excel download) ----------
+// One line per hour (Lebanon time): average kW of each generator and the solar, fuel used by each generator in that hour
+// (its kWh x GEN_LPKWH), the refuelling counter and the litres in the tank at the end of the hour. Kept forever: never reset, never trimmed (about 1.3 MB a year).
+const DLOG_FILE = path.join(__dirname, 'data_log.json');
+let dlog = [], dAcc = null;
+try { const j = JSON.parse(fs.readFileSync(DLOG_FILE, 'utf8')); if (Array.isArray(j)) dlog = j; } catch (_) {}
+const hourStart = t => Math.floor(t / 3600e3) * 3600e3;            // Lebanon is a whole number of hours from UTC, so hours line up
+function dlogAdd(row) { const i = dlog.findIndex(r => r.t === row.t); if (i >= 0) return false; dlog.push(row); dlog.sort((a, b) => a.t - b.t); return true; }
+function dlogClose(a) {
+  const n = a.n || 1, row = { t: a.h };
+  for (const g of gens) { row[g.id] = +(a.kw[g.id] / n).toFixed(1); row[g.id + 'L'] = +(a.kwh[g.id] * GEN_LPKWH).toFixed(1); }
+  row.solar = +(a.kw.solar / n).toFixed(1); row.solarKwh = +a.kwh.solar.toFixed(1); row.counter = a.counter; row.tank = a.tank;
+  dlogAdd(row); fs.writeFile(DLOG_FILE, JSON.stringify(dlog), () => {});
+}
+function trackDataLog(v) {
+  const now = Date.now(), h = hourStart(now), kw = { solar: solarKw(v) }; for (const g of gens) kw[g.id] = Math.max(0, +v[g.id + '.kw'] || 0);
+  if (dAcc && dAcc.h !== h) { dlogClose(dAcc); dAcc = null; }
+  if (!dAcc) { dAcc = { h, n: 0, kw: {}, kwh: {}, last: null }; for (const k in kw) { dAcc.kw[k] = 0; dAcc.kwh[k] = 0; } }
+  dAcc.n++; for (const k in kw) dAcc.kw[k] += kw[k];
+  if (dAcc.last && now - dAcc.last.t < 120e3) for (const k in kw) dAcc.kwh[k] += (kw[k] + dAcc.last.kw[k]) / 2 * (now - dAcc.last.t) / 3600e3;
+  dAcc.last = { t: now, kw };
+  if (v.fuel_counter != null && isFinite(v.fuel_counter)) dAcc.counter = +v.fuel_counter;
+  if (v.fuel_l != null && isFinite(v.fuel_l)) dAcc.tank = Math.round(v.fuel_l);
+}
+// First start with an empty log: fill it from the chart samples already recorded (one a minute, last 30 days). No refuelling counter in those.
+function dlogFromHistory() {
+  if (dlog.length || !history.length) return;
+  const by = new Map();
+  for (const p of history) { const h = hourStart(p.t); if (h >= hourStart(Date.now())) continue; if (!by.has(h)) by.set(h, []); by.get(h).push(p); }
+  for (const [h, ps] of by) {
+    const row = { t: h, backfill: true };
+    for (const g of gens) { const k = ps.map(p => p[g.id]).filter(x => x != null); row[g.id] = k.length ? +(k.reduce((a, b) => a + b, 0) / k.length).toFixed(1) : null; row[g.id + 'L'] = row[g.id] == null ? null : +(row[g.id] * ps.length / 60 * GEN_LPKWH).toFixed(1); }
+    const sk = ps.map(p => p.solar).filter(x => x != null); row.solar = sk.length ? +(sk.reduce((a, b) => a + b, 0) / sk.length).toFixed(1) : null; row.solarKwh = row.solar == null ? null : +(row.solar * ps.length / 60).toFixed(1);
+    row.counter = null; const lf = [...ps].reverse().find(p => p.fuel != null); row.tank = lf ? Math.round(lf.fuel) : null;
+    dlog.push(row);
+  }
+  dlog.sort((a, b) => a.t - b.t); fs.writeFile(DLOG_FILE, JSON.stringify(dlog), () => {});
+}
+function mergeDataLog(list) { let n = 0; if (Array.isArray(list)) for (const r of list) if (r && isFinite(r.t) && dlogAdd(r)) n++; return n; }
+// A real .xlsx file, built without extra packages: a zip (stored, no compression) of the few XML parts Excel needs.
+const CRC_T = (() => { const t = new Int32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
+function crc32(b) { let c = -1; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; }
+function zip(files) {
+  const parts = [], cen = []; let off = 0;
+  for (const [name, text] of files) {
+    const d = Buffer.from(text, 'utf8'), nm = Buffer.from(name), crc = crc32(d), h = Buffer.alloc(30);
+    h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt32LE(crc, 14); h.writeUInt32LE(d.length, 18); h.writeUInt32LE(d.length, 22); h.writeUInt16LE(nm.length, 26);
+    const c = Buffer.alloc(46); c.writeUInt32LE(0x02014b50, 0); c.writeUInt16LE(20, 4); c.writeUInt16LE(20, 6); c.writeUInt32LE(crc, 16); c.writeUInt32LE(d.length, 20); c.writeUInt32LE(d.length, 24); c.writeUInt16LE(nm.length, 28); c.writeUInt32LE(off, 42);
+    parts.push(h, nm, d); cen.push(c, nm); off += 30 + nm.length + d.length;
+  }
+  const cd = Buffer.concat(cen), e = Buffer.alloc(22); e.writeUInt32LE(0x06054b50, 0); e.writeUInt16LE(files.length, 8); e.writeUInt16LE(files.length, 10); e.writeUInt32LE(cd.length, 12); e.writeUInt32LE(off, 16);
+  return Buffer.concat([...parts, cd, e]);
+}
+function xlsx(rows, widths) {
+  const esc = x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const col = i => { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const sheet = rows.map((r, ri) => '<row r="' + (ri + 1) + '">' + r.map((v, ci) => { const ref = col(ci) + (ri + 1), st = ri < 3 ? ' s="1"' : '';
+    return v == null || v === '' ? '' : typeof v === 'number' && isFinite(v) ? '<c r="' + ref + '"' + st + '><v>' + v + '</v></c>' : '<c r="' + ref + '" t="inlineStr"' + st + '><is><t>' + esc(v) + '</t></is></c>'; }).join('') + '</row>').join('');
+  return zip([
+    ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
+    ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Hourly log" sheetId="1" r:id="rId1"/></sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+    ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="2"><xf/><xf fontId="1" applyFont="1"/></cellXfs></styleSheet>'],
+    ['xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>' + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>' + sheet + '</sheetData></worksheet>']
+  ]);
+}
+const BZM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+function dataLogXlsx(from, to) {
+  const f = t => { const p = {}; for (const x of BZM.formatToParts(new Date(t))) p[x.type] = x.value; return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute; };   // Lebanon time (summer and winter)
+  const list = dlog.filter(r => r.t >= from && r.t <= to);
+  const head = ['Hour (Lebanon time)', 'Site'];
+  for (const g of gens) head.push(g.label + ' kW (avg)', g.label + ' fuel (L)');
+  head.push('Solar kW (avg)', 'Solar production (kWh)', 'Refuelling counter', 'Fuel in tank (L)', 'Tank capacity (L)');
+  const site = 'AL DHOUR POWER HOUSE', cap = cfg.site.tankLitres || null;
+  const rows = [[site + ' - hourly data log'], ['Generator fuel = generator kWh x ' + GEN_LPKWH + ' L/kWh. Rows marked * were rebuilt from the chart data (no counter reading).'], head];
+  for (const r of list) { const row = [f(r.t) + (r.backfill ? ' *' : ''), site]; for (const g of gens) row.push(r[g.id], r[g.id + 'L']); row.push(r.solar, r.solarKwh, r.counter, r.tank, cap); rows.push(row); }
+  return xlsx(rows, [20, 24, ...gens.flatMap(() => [20, 20]), 16, 22, 18, 16, 16]);
+}
 // KWH/L can be started again by hand (tap on the KWH/L box): only the ratio's starting point moves, kWh today and fuel today are never touched.
 // The starting point lives in the day's counters (c.rb), so it is saved and backed up with them and is dropped at 00:00 with the day.
 function ratioOf(c) { return c.rb ? { since: c.rb.ts, kwh: +((c.kwh || 0) - c.rb.kwh).toFixed(3), fuel: +(c.total - c.rb.fuel).toFixed(3) } : null; }
@@ -344,7 +423,7 @@ async function poll() {
       if (values[h] != null) values[h] += (values[g.id + '.min'] || 0) / 60 + (values[g.id + '.sec'] || 0) / 3600;
     });
     state = { conn, updated: Date.now(), values, error: null };
-    trackRefuel(values); trackFuelLevel(values); trackToday(values); trackGenFuel(values); checkFuelAlarm(values);
+    trackRefuel(values); trackFuelLevel(values); trackToday(values); trackGenFuel(values); trackDataLog(values); checkFuelAlarm(values);
     const last = history[history.length - 1];
     if (!last || Date.now() - last.t >= 60000) {
       const pt = { t: Date.now(), fuel: values.fuel_l ?? null };
@@ -526,6 +605,7 @@ function mergeAll(j) {
   if (!j || typeof j !== 'object') return out;
   if (j.cons || j.mon || j.sol) Object.assign(out, mergeCounters(j));
   if (j.gf) out.genFuel = mergeGenFuel(j.gf);
+  if (j.dlog) { out.dataLog = mergeDataLog(j.dlog); fs.writeFileSync(DLOG_FILE, JSON.stringify(dlog)); }
   if (Array.isArray(j.refuels)) {
     const n = refuels.length;
     refuels = mergeList(refuels, j.refuels.filter(r => r && isFinite(r.litres) && r.litres > 0).map(r => ({ ...r, id: r.id ?? r.start })), r => r.id ?? r.start, 2000);
@@ -554,7 +634,7 @@ function mergeAll(j) {
 }
 // Everything that is recorded, in one file (Al Dhour and Al Mahfara). The next version reads this from the running one before it goes online.
 function exportAll() {
-  return { v: 2, t: Date.now(), cons, mon, sol, gf, refuels, fuelLog, history, alarm: alarmL, mh: { cons: mcons, mon: mmon, sol: msol, hist: mhHist } };
+  return { v: 2, t: Date.now(), cons, mon, sol, gf, dlog, refuels, fuelLog, history, alarm: alarmL, mh: { cons: mcons, mon: mmon, sol: msol, hist: mhHist } };
 }
 // Hand-over on Render: a new version is started next to the running one and only gets the visitors once it listens on its port.
 // So before listening, it copies all the recorded data from the running version through the public address.
@@ -636,6 +716,12 @@ const server = http.createServer((req, res) => {
     }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({ now: Date.now(), since: trackStart, level: fuelCur, total: fuelLog.length, list: list.slice(0, 300) }));
+  }
+  if (url === '/api/datalog.xlsx') {       // hourly data log as an Excel file; ?days=N (default 31, 0 = everything)
+    const q = new URL(req.url, 'http://x').searchParams, d = q.has('days') ? +q.get('days') : 31, to = Date.now(), from = d > 0 ? to - d * DAY : 0;
+    const name = 'al-dhour-hourly-log-' + bparts(to).day + '.xlsx';
+    res.writeHead(200, { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="' + name + '"' });
+    return res.end(dataLogXlsx(from, to));
   }
   if (url === '/api/refuels' || url === '/api/refuels.csv') {
     const list = [...refuels].reverse();
@@ -759,4 +845,4 @@ const server = http.createServer((req, res) => {
     res.end(data);
   });
 });
-takeOver().finally(() => server.listen(cfg.port, () => console.log('Dashboard on http://localhost:' + cfg.port + '  (mode: ' + cfg.mode + ')')));
+takeOver().finally(() => { dlogFromHistory(); server.listen(cfg.port, () => console.log('Dashboard on http://localhost:' + cfg.port + '  (mode: ' + cfg.mode + ')')); });
