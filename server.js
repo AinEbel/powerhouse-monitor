@@ -479,8 +479,8 @@ function xlsx(rows, widths, o) {
 }
 // Each power house has its own log (own file, own rows); the same columns and pages are built from it.
 const LOG_SITES = {
-  aldhour: { name: 'AL DHOUR POWER HOUSE', slug: 'al-dhour', counter: true, gens: () => gens.map(g => g.id), rows: () => dlog, tank: () => cfg.site.tankLitres },
-  mahfara: { name: 'AL MAHFARA POWER HOUSE', slug: 'al-mahfara', counter: false, gens: () => ['m1', 'm2'], rows: () => mdlog, tank: () => MH_TANK_L }
+  aldhour: { name: 'AL DHOUR POWER HOUSE', slug: 'al-dhour', home: '/', counter: true, gens: () => gens.map(g => g.id), rows: () => dlog, tank: () => cfg.site.tankLitres },
+  mahfara: { name: 'AL MAHFARA POWER HOUSE', slug: 'al-mahfara', home: '/mahfara.html', counter: false, gens: () => ['m1', 'm2'], rows: () => mdlog, tank: () => MH_TANK_L }
 };
 // Set LOG_PASSWORD on Render to ask for a password before the Excel file is given (the live page stays open). Not set = open to everyone.
 const LOG_PASSWORD = E.LOG_PASSWORD || '';
@@ -528,7 +528,7 @@ function dataLogHtml(S, from, to, pick, period, qs) {
   const cards = d.cols.filter(c => c.sum).map(c => `<div class="card" data-k="${c.k}"><span>${esc(c.label)}</span><b>${n(d.total[d.cols.indexOf(c)])}</b></div>`).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(d.site)} - data log</title><style>
 *{box-sizing:border-box}body{font:14px/1.45 "Segoe UI",Arial,Helvetica,sans-serif;margin:0;color:#1d2328;background:#f4f6f8}
-header{background:#1d2328;color:#fff;padding:18px 24px;border-bottom:4px solid #ffc21a}header h1{margin:0;font-size:24px;letter-spacing:.06em}header p{margin:4px 0 0;color:#c7d0d6}
+header{background:#1d2328;color:#fff;padding:18px 24px;border-bottom:4px solid #ffc21a}header .back{float:right;color:#1d2328;background:#ffc21a;text-decoration:none;font-weight:700;padding:9px 16px;border-radius:4px;font-size:15px;margin-left:12px}header h1{margin:0;font-size:24px;letter-spacing:.06em}header p{margin:4px 0 0;color:#c7d0d6}
 main{padding:16px 24px}.cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}.card{background:#fff;border:1px solid #dde3e8;border-top:3px solid #ffc21a;border-radius:6px;padding:10px 14px;min-width:150px;text-align:center}
 .card span{display:block;font-size:11px;letter-spacing:.08em;color:#6b7a85;font-weight:700}.card b{display:block;font-size:22px}.card i{font-style:normal;font-size:12px;color:#6b7a85}
 .bar{display:flex;gap:10px 18px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid #dde3e8;border-radius:6px;padding:10px 14px;margin-bottom:12px}
@@ -539,9 +539,9 @@ table{border-collapse:collapse;width:100%}th,td{padding:5px 10px;font-size:13px;
 thead th{background:#2b343b;color:#fff;font-weight:600;position:sticky;z-index:1}thead th{top:0;font-size:12.5px}
 th.g,td.g{border-left:2px solid #c9d1d7}tbody tr:nth-child(even) td{background:#f7f9fa}tbody tr:hover td{background:#fff6d6}td.d{font-weight:600}
 tfoot td{font-weight:700;background:#fff3c4;position:sticky;bottom:0;border-top:2px solid #ffc21a}.note{color:#6b7a85;font-size:12px;margin-top:8px}.off{display:none}
-@media print{body{background:#fff;font-size:9px}header{padding:6px 0;background:#fff;color:#000;border-bottom:2px solid #000}header p{color:#333}main{padding:6px 0}.bar{display:none}.wrap{max-height:none;overflow:visible;border:0}
+@media print{header .back{display:none}body{background:#fff;font-size:9px}header{padding:6px 0;background:#fff;color:#000;border-bottom:2px solid #000}header p{color:#333}main{padding:6px 0}.bar{display:none}.wrap{max-height:none;overflow:visible;border:0}
 thead th,tfoot td{position:static}thead th{background:#ddd!important;color:#000}th,td{padding:2px 5px}.card{padding:4px 8px;min-width:0}.card b{font-size:13px}@page{size:A4 landscape;margin:8mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-</style></head><body><header><h1>${esc(d.site)}</h1><p>Hourly data log · ${esc(period)} · ${d.rows.length} hours${tk ? ' · Tank capacity ' + tk.toLocaleString('en-US') + ' L' : ''}</p></header><main>
+</style></head><body><header><a class="back" href="${S.home}" onclick="if(history.length>1&&document.referrer){history.back();return false}">&#8592; Back to site</a><h1>${esc(d.site)}</h1><p>Hourly data log · ${esc(period)} · ${d.rows.length} hours${tk ? ' · Tank capacity ' + tk.toLocaleString('en-US') + ' L' : ''}</p></header><main>
 <div class="cards">${cards}</div>
 <div class="bar"><div class="picks">${groups.map(g => `<fieldset><legend>${esc(g.name)}</legend><div class="opts">${g.cols.map(c => `<label><span>${esc(c.label)}</span><input type="checkbox" data-k="${c.k}"${on.has(c.k) ? ' checked' : ''}></label>`).join('')}</div></fieldset>`).join('')}</div>
 <input type="search" id="q" placeholder="Search a date or hour, e.g. 2026-11-05 14:00"><span id="c"></span><button onclick="print()">Print / Save as PDF</button></div>

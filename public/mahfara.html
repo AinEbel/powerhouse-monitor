@@ -694,7 +694,7 @@ clkTick(); setInterval(clkTick, 1000);
   document.querySelectorAll('#dlPick input').forEach(b => b.onchange = () => { try { localStorage.setItem('mhLogCols', JSON.stringify([...document.querySelectorAll('#dlPick input:checked')].map(x => x.value))); } catch (_) {} });
   $('dlView').onclick = () => {
     if (F.value && T.value && F.value > T.value) { M.textContent = 'The start date is after the end date.'; return; }
-    M.textContent = ''; if (!cols()) { M.textContent = 'Tick at least one reading.'; return; } window.open('/api/mahfara/datalog.html?from=' + F.value + '&to=' + T.value + '&cols=' + cols() + (key ? '&key=' + encodeURIComponent(key) : ''), '_blank');
+    M.textContent = ''; if (!cols()) { M.textContent = 'Tick at least one reading.'; return; } { const u = '/api/mahfara/datalog.html?from=' + F.value + '&to=' + T.value + '&cols=' + cols() + (key ? '&key=' + encodeURIComponent(key) : ''); if (matchMedia('(pointer: coarse)').matches || matchMedia('(display-mode: standalone)').matches) location.href = u; else window.open(u, '_blank'); }
   };
   $('dlGo').onclick = async () => {
     if (F.value && T.value && F.value > T.value) { M.textContent = 'The start date is after the end date.'; return; }
