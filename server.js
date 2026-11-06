@@ -331,6 +331,16 @@ function mhGenFuel(v) {
   return { lpkwh: GEN_LPKWH, month: cur, lastMonth: prev, gens: Object.fromEntries(MH_GF.map(g => { const r = mgfOf(g.id), kw = Math.max(0, +(v || {})[g.key + '.kw'] || 0);
     return [g.key, { lph: +(kw * GEN_LPKWH).toFixed(1), month: +(r.months[cur] || 0).toFixed(1), lastMonth: r.months[prev] != null ? +r.months[prev].toFixed(1) : null, total: +r.total.toFixed(1), since: r.since }]; })) };
 }
+// Estimated savings from the solar (Al Dhour): every solar kWh is a kWh the generators did not have to make.
+// Fuel saved = solar kWh x GEN_LPKWH (0.28 L/kWh, the same rate as the generator fuel); CO2 saved = litres x 2.68 kg (burning 1 L of diesel).
+// Read only from the solar counters already recorded; nothing new is stored.
+const CO2_KG_PER_L = +E.CO2_KG_PER_L || 2.68;
+function solarSave() {
+  const day = bparts(Date.now()).day, mk = day.slice(0, 7);
+  let month = 0; for (const [k, v] of Object.entries(mon.solar || {})) if (k.startsWith(mk)) month += v;
+  const one = kwh => ({ kwh: +kwh.toFixed(1), litres: +(kwh * GEN_LPKWH).toFixed(1), co2: +(kwh * GEN_LPKWH * CO2_KG_PER_L).toFixed(1) });
+  return { lpkwh: GEN_LPKWH, co2PerL: CO2_KG_PER_L, month: mk, today: one((mon.solar || {})[day] || 0), mon: one(month), total: one(sol.kwh) };
+}
 function genFuel(v) {
   const [y, m] = bparts(Date.now()).day.split('-').map(Number), cur = y + '-' + String(m).padStart(2, '0'), prev = (m < 2 ? y - 1 : y) + '-' + String(m < 2 ? 12 : m - 1).padStart(2, '0');
   return { lpkwh: GEN_LPKWH, month: cur, lastMonth: prev, gens: Object.fromEntries(gens.map(g => { const r = gfOf(g.id), kw = Math.max(0, +(v || {})[g.id + '.kw'] || 0);
@@ -1005,7 +1015,7 @@ const server = http.createServer((req, res) => {
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })), solar: SOLAR ? { id: SOLAR.id, label: SOLAR.label, kwp: SOLAR.kwp || null } : null,
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
-      online: onlineCount(), solarTotal: { kwh: +sol.kwh.toFixed(2), since: sol.since, kw: +solarKw(state.values || {}).toFixed(1) }, fuelToday: fuelToday(), genFuel: genFuel(state.values), outside: wNow ? { c: wNow.c, t: wNow.t } : null, alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
+      online: onlineCount(), solarTotal: { kwh: +sol.kwh.toFixed(2), since: sol.since, kw: +solarKw(state.values || {}).toFixed(1) }, solarSave: solarSave(), fuelToday: fuelToday(), genFuel: genFuel(state.values), outside: wNow ? { c: wNow.c, t: wNow.t } : null, alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
     }));
   }
   const file = path.join(__dirname, 'public', url === '/' ? 'index.html' : url);
