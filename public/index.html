@@ -412,7 +412,7 @@ function build(s) {
     <path id="pfl-load" class="wire" d="M${LX} 40.5V-4"/>
     <g transform="translate(${LX - 70} -70)"><rect class="node" x="0" y="0" width="140" height="66" rx="3"/>
     <path d="M22 10 14 34h9l-3 22 15-28h-9l4-18z" fill="#ffc21a"/>
-    <text class="k" x="44" y="26">AIN EBEL</text><text class="v" id="pf-load" x="44" y="50">--</text></g>
+    <text class="k" x="44" y="26">AIN EBEL</text><text class="v" id="pf-load" x="44" y="50">--</text><rect id="ioscan-btn" x="0" y="0" width="140" height="66" fill="transparent" style="cursor:default;-webkit-tap-highlight-color:transparent;touch-action:none"/></g>
     ${s.generators.map((g, i) => `
     <path id="pfl-${g.id}" class="wire" d="M${gx(i)} 100V49.5"/>
     <rect id="pfb-${g.id}" class="node" x="${gx(i) - 66}" y="100" width="132" height="58" rx="3"/>
@@ -748,6 +748,29 @@ async function loadTemp() {
 }
 loadTemp(); setInterval(loadTemp, 600000);
 // tap on the KWH/L box: start the KWH/L ratio again from now (kWh today and fuel today are not changed)
+// Hidden push button on the AIN EBEL tile: hold 2 s, confirm, and %M440 resets the IO scan on the Schneider PLC.
+(() => {
+  let hold = null;
+  const stop = () => { clearTimeout(hold); hold = null; };
+  document.addEventListener('pointerdown', e => {
+    if (!e.target || e.target.id !== 'ioscan-btn') return;
+    e.preventDefault(); stop();
+    hold = setTimeout(async () => {
+      hold = null;
+      if (navigator.vibrate) navigator.vibrate(60);
+      if (!confirm('Reset the IO scan on the PLC (%M440)?')) return;
+      try {
+        const r = await fetch('/api/ioscan-reset', { method: 'POST', headers: { 'X-Pin': window.__ioscanPin || '' } });
+        const j = await r.json().catch(() => ({}));
+        if (r.status === 401) { const p = prompt('PIN'); if (p) { window.__ioscanPin = p; const r2 = await fetch('/api/ioscan-reset', { method: 'POST', headers: { 'X-Pin': p } }); const j2 = await r2.json().catch(() => ({})); alert(r2.ok ? 'IO scan reset sent.' : 'IO scan reset failed: ' + (j2.error || r2.status)); } return; }
+        alert(r.ok ? 'IO scan reset sent.' : 'IO scan reset failed: ' + (j.error || r.status));
+      } catch (_) { alert('IO scan reset failed: no connection.'); }
+    }, 2000);
+  });
+  ['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, stop, true));
+  document.addEventListener('pointerleave', e => { if (e.target && e.target.id === 'ioscan-btn') stop(); }, true);
+  document.addEventListener('contextmenu', e => { if (e.target && e.target.id === 'ioscan-btn') e.preventDefault(); });
+})();
 window.kwhlReset = async () => { if (!confirm('Reset KWH/L?')) return; try { await fetch('/api/ratio-reset', { method: 'POST' }); } catch (_) {} refresh(); };
 refresh(); setInterval(refresh, 5000);
 const clkTick = () => { const n = new Date(), z = { timeZone: 'Asia/Beirut' }; $('clkT').textContent = n.toLocaleTimeString('en-GB', { ...z, hour12: false }); $('clkD').textContent = n.toLocaleDateString('en-GB', { ...z, weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/,/g, '').toUpperCase(); };

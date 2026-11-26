@@ -859,6 +859,33 @@ async function takeOver() {
   console.log('handover', JSON.stringify(handover));
 }
 
+// ---------- IO scan reset: hidden push button on the AIN EBEL tile writes %M440 on the Schneider PLC (Al Dhour FBox) ----------
+// The FBox cloud writes to a monitoring point by its name, so %M440 must exist in FBox Manager as a read/write bit point.
+// Its name and group default to "IO SCAN RESET" / "PLC CONTROL" and can be changed with IOSCAN_NAME / IOSCAN_GROUP.
+// Momentary push: write 1, hold IOSCAN_HOLD_MS (1.5 s), write 0. Touches nothing that is recorded (kWh, fuel, solar, logs).
+const IOSCAN = { name: E.IOSCAN_NAME || 'IO SCAN RESET', group: E.IOSCAN_GROUP || 'PLC CONTROL', hold: Number(E.IOSCAN_HOLD_MS) || 1500, pin: E.IOSCAN_PIN || '' };
+let ioscanLast = 0;
+async function fboxWrite(boxNo, name, group, value) {
+  const t = await getToken();
+  const r = await fetch(cfg.fbox.host.replace(/\/$/, '') + '/api/v2/dmon/value?boxNo=' + encodeURIComponent(boxNo), {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
+    body: JSON.stringify({ name, groupname: group, type: 0, value })
+  });
+  if (r.status === 401) tok = null;
+  if (!r.ok) throw new Error('FBox write "' + name + '" = ' + value + ' failed (' + r.status + ' ' + (r.headers.get('X-FBox-Code') || '') + ') ' + (await r.text()).slice(0, 200));
+}
+async function ioscanReset() {
+  for (let i = 0; polling && i < 60; i++) await sleep(500);     // let the current read finish: the FBox allows about 1 call per second
+  polling = true;
+  try {
+    await sleep(1200);
+    await fboxWrite(cfg.fbox.boxNo, IOSCAN.name, IOSCAN.group, 1);
+    await sleep(Math.max(1200, IOSCAN.hold));
+    try { await fboxWrite(cfg.fbox.boxNo, IOSCAN.name, IOSCAN.group, 0); }
+    catch (e) { await sleep(2000); await fboxWrite(cfg.fbox.boxNo, IOSCAN.name, IOSCAN.group, 0); }   // never leave the bit at 1
+  } finally { polling = false; }
+}
+
 // ---------- Web server ----------
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
 const CORS = { 'Access-Control-Allow-Origin': 'https://fbox360.com', 'Access-Control-Allow-Headers': 'Content-Type, X-Token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
@@ -968,6 +995,16 @@ const server = http.createServer((req, res) => {
     c.rb = { ts: Date.now(), kwh: c.kwh || 0, fuel: c.total };
     fs.writeFile(mhS ? MH_CONS_FILE : CONS_FILE, JSON.stringify(c), () => {});
     res.writeHead(200, H); return res.end(JSON.stringify({ ok: true, ratio: ratioOf(c) }));
+  }
+  if (url === '/api/ioscan-reset' && req.method === 'POST') {
+    const H = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+    if (cfg.mode !== 'fbox') { res.writeHead(409, H); return res.end(JSON.stringify({ error: 'not connected to the FBox (mode ' + cfg.mode + ')' })); }
+    if (IOSCAN.pin && (req.headers['x-pin'] || '') !== IOSCAN.pin) { res.writeHead(401, H); return res.end(JSON.stringify({ error: 'wrong PIN' })); }
+    if (Date.now() - ioscanLast < 30000) { res.writeHead(429, H); return res.end(JSON.stringify({ error: 'wait 30 s between resets' })); }
+    ioscanLast = Date.now();
+    ioscanReset().then(() => { console.log(new Date().toISOString(), 'IO scan reset sent (' + IOSCAN.name + ')'); res.writeHead(200, H); res.end(JSON.stringify({ ok: true })); })
+      .catch(e => { console.error(new Date().toISOString(), 'IO scan reset', e.message); res.writeHead(502, H); res.end(JSON.stringify({ error: e.message })); });
+    return;
   }
   if (url === '/api/alarm' && req.method === 'POST') {
     let body = ''; req.on('data', d => { body += d; if (body.length > 1e4) req.destroy(); });
