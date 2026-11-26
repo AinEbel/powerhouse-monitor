@@ -1,6 +1,7 @@
 // Power house monitor: polls the Flexem FBox cloud API and serves a shareable dashboard.
 // Requires Node 18+. No npm packages needed.  Run:  node server.js
 const http = require('http'), fs = require('fs'), path = require('path');
+const ebox = require('./ebox');                  // E.BOX reader (read only), see ebox.js
 const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
 // Hosting: secrets and switches can come from environment variables instead of config.json
 const E = process.env;
@@ -1081,6 +1082,10 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     const ok = cfg.mode === 'fbox';
     return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), solarSave: solarSave(mmon.solar, msol.kwh), genFuel: mhGenFuel(mh.values), solarTotal: { kwh: +msol.kwh.toFixed(2), since: msol.since, kw: +Math.max(0, mh.values['solar.kw'] || 0).toFixed(1) }, now: Date.now() }));
+  }
+  if (url === '/api/ebox/status') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify(ebox.status()));
   }
   if (url === '/api/status') {
     const vid = (new URL(req.url, 'http://x').searchParams.get('v') || '');
