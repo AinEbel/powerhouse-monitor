@@ -208,11 +208,11 @@ async function notifyPhone(title, message, priority, tags, sendEmail) {
   }
   return ok;
 }
-function checkFuelAlarm(v) {                         // one message when the level drops below the alarm level, repeats every ALARM_REPEAT_S seconds (default 10) while it stays low
+function checkFuelAlarm(v) {                         // one message when the level drops below the alarm level, repeats every ALARM_REPEAT_S seconds (default 900 = 15 min, so the phone is not flooded) while it stays low
   const L = v && v.fuel_l, now = Date.now();
   if (L == null || !isFinite(L) || !(alarmL > 0)) return;
   if (L < alarmL) {
-    if (!alarmActive || now - alarmLastSent >= (Number(E.ALARM_REPEAT_S) || 10) * 1000) {
+    if (!alarmActive || now - alarmLastSent >= (Number(E.ALARM_REPEAT_S) || 900) * 1000) {
       alarmActive = true; alarmLastSent = now;
       const emailDue = now - emailLast >= EMAIL_REPEAT_S * 1000; if (emailDue) emailLast = now;   // email at most every 15 min, other alerts every 10 s
       notifyPhone('AL DHOUR POWER PLANT - LOW FUEL ALARM', 'Diesel level is ' + Math.round(L) + ' L, below the alarm level of ' + Math.round(alarmL) + ' L.', 'urgent', 'rotating_light,fuelpump', emailDue);
@@ -925,6 +925,55 @@ async function ioscanReset() {
   } finally { polling = false; }
 }
 
+// ---------- Daily phone reports (ntfy): power house summary at 09:05 and E.BOX report at 10:00, Beirut time ----------
+// Uses NTFY_TOPIC (same as the alarms). Each report goes out once per day; the day is remembered in daily_push.json.
+const PUSH_FILE = path.join(__dirname, 'daily_push.json');
+let pushed2 = {}, pushTestLast = 0;
+try { pushed2 = JSON.parse(fs.readFileSync(PUSH_FILE, 'utf8')) || {}; } catch (_) {}
+const BHM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+function beirutNow() { const p = {}; for (const x of BHM.formatToParts(new Date())) p[x.type] = x.value; return { day: p.year + '-' + p.month + '-' + p.day, min: +p.hour * 60 + +p.minute }; }
+const n1 = x => x == null || !isFinite(x) ? '-' : (Math.round(x * 10) / 10).toLocaleString('en-US');
+function powerHouseText(day) {                     // 09:00 yesterday to 09:00 today, from the hourly data log
+  const end = beirutMidnight(day) + 9 * 3600e3, start = end - DAY;
+  const rows = dlog.filter(r => r.t >= start && r.t < end);
+  const kwhOf = (r, id) => r[id + 'Kwh'] != null ? r[id + 'Kwh'] : r[id + 'L'] != null ? r[id + 'L'] / GEN_LPKWH : 0;
+  const per = gens.map(g => ({ label: g.label, kwh: rows.reduce((a, r) => a + (kwhOf(r, g.id) || 0), 0), l: rows.reduce((a, r) => a + (r[g.id + 'L'] || 0), 0) }));
+  const sol = rows.reduce((a, r) => a + (r.solarKwh || 0), 0), total = per.reduce((a, g) => a + g.kwh, 0) + sol;
+  const first = rows[0], endRow = dlog.find(r => r.t === end) || (Date.now() - end < 3 * 3600e3 ? { tank: state.values && state.values.fuel_l, counter: state.values && state.values.fuel_counter } : null);
+  const t0 = first && first.tank, t1 = endRow && endRow.tank, ref = first && endRow && endRow.counter != null && first.counter != null ? Math.max(0, endRow.counter - first.counter) : 0;
+  const lines = ['09:00 ' + new Date(start).toISOString().slice(0, 10) + ' to 09:00 ' + day + ' (' + rows.length + ' hours logged)', ''];
+  per.forEach(g => lines.push(g.label + ': ' + n1(g.kwh) + ' kWh, ' + n1(g.l) + ' L'));
+  lines.push('Solar: ' + n1(sol) + ' kWh', 'Total: ' + n1(total) + ' kWh');
+  if (t0 != null && t1 != null) lines.push('Fuel used (tank): ' + n1(t0 - t1 + ref) + ' L (tank ' + n1(t0) + ' -> ' + n1(t1) + ' L' + (ref ? ', refuelled ' + n1(ref) + ' L' : '') + ')');
+  return lines.join('\n');
+}
+function eboxText() {
+  const s = ebox.status(), b = s.boxes && s.boxes[0];
+  if (!b || !s.updated) return null;
+  const R = id => { const r = b.readings.find(x => x.id === id); return r ? r.value : null; };
+  const hm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', hour: '2-digit', minute: '2-digit' }).format(new Date(s.updated));
+  const m = { v: R('by0189d69'), a: R('by0200333'), kw: R('by021bebf'), kwh: R('by022c703') }, e = { v: R('by037ac47'), a: R('by0394b26'), kw: R('by0406742'), kwh: R('by0411d77') };
+  const t = { a: R('by045fbf6'), kw: R('by046e2bc'), kwh: R('by0476c8c') };
+  const one = (n, x) => n + ': ' + n1(x.v) + ' V, ' + n1(x.a) + ' A, ' + n1(x.kw) + ' kW, ' + n1(x.kwh) + ' kWh';
+  return ['Reading at ' + hm + (s.conn !== 'online' || Date.now() - s.updated > 600e3 ? ' (E.BOX not answering, last known values)' : ''), '',
+    one('MAROUN', m), one('ELIE', e), '', 'TOTAL: ' + n1(t.a) + ' A, ' + n1(t.kw) + ' kW, ' + n1(t.kwh) + ' kWh'].join('\n');
+}
+const DAILY_PUSHES = [
+  { key: 'powerhouse', at: 9 * 60 + 5, title: 'AIN EBEL POWER HOUSE - daily report', tags: 'zap', text: powerHouseText },
+  { key: 'ebox', at: 10 * 60, title: 'E.BOX - Maroun & Elie', tags: 'electric_plug', text: () => eboxText() }
+];
+async function dailyPushes() {
+  if (!NTFY_TOPIC) return;
+  const { day, min } = beirutNow();
+  for (const p of DAILY_PUSHES) {
+    if (min < p.at || min > p.at + 120 || pushed2[p.key] === day) continue;     // send within 2 hours after the time, once a day
+    const text = p.text(day); if (!text) continue;
+    pushed2[p.key] = day; fs.writeFile(PUSH_FILE, JSON.stringify(pushed2), () => {});
+    await notifyPhone(p.title, text, 'default', p.tags, false);
+  }
+}
+setInterval(() => { dailyPushes().catch(e => console.error('daily push', e.message)); }, 60e3);
+
 // ---------- Web server ----------
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
 const CORS = { 'Access-Control-Allow-Origin': 'https://fbox360.com', 'Access-Control-Allow-Headers': 'Content-Type, X-Token', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
@@ -1082,6 +1131,15 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     const ok = cfg.mode === 'fbox';
     return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), solarSave: solarSave(mmon.solar, msol.kwh), genFuel: mhGenFuel(mh.values), solarTotal: { kwh: +msol.kwh.toFixed(2), since: msol.since, kw: +Math.max(0, mh.values['solar.kw'] || 0).toFixed(1) }, now: Date.now() }));
+  }
+  if (url === '/api/push-test' && req.method === 'POST') {          // sends both daily reports to the phone now, as a test
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    if (!NTFY_TOPIC) return res.end(JSON.stringify({ ok: false, error: 'NTFY_TOPIC is not set' }));
+    if (Date.now() - pushTestLast < 60e3) return res.end(JSON.stringify({ ok: false, error: 'wait a minute between tests' }));
+    pushTestLast = Date.now(); const day = beirutNow().day;
+    Promise.all(DAILY_PUSHES.map(p => { const t = p.text(day); return t ? notifyPhone('TEST - ' + p.title, t, 'default', p.tags, false) : false; }))
+      .then(r => res.end(JSON.stringify({ ok: r.some(Boolean), sent: r }))).catch(e => res.end(JSON.stringify({ ok: false, error: e.message })));
+    return;
   }
   if (url === '/api/ebox/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
