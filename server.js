@@ -587,6 +587,44 @@ function onlineCount() {
   return n;
 }
 
+// ---------- Auto IO scan reset ----------
+// When the IO scan freezes, every reading from the PLC drops to 0. While the FBox is online and BOTH generators show
+// no voltage on L1, L2 and L3 for AUTO_RSCAN_CONFIRM_S (default 60 s), pulse %M440 and repeat every AUTO_RSCAN_RETRY_S
+// (default 120 s) until voltage comes back. Each reset and the recovery are logged and sent as a phone alert.
+// Set AUTO_RSCAN=0 to turn it off.
+const AUTO = { on: E.AUTO_RSCAN !== '0', confirm: (Number(E.AUTO_RSCAN_CONFIRM_S) || 60) * 1000, retry: (Number(E.AUTO_RSCAN_RETRY_S) || 120) * 1000, minV: Number(E.AUTO_RSCAN_MIN_V) || 20 };
+const RSCAN_FILE = path.join(__dirname, 'rscan_log.json');
+let rscanLog = [], downSince = 0, autoLast = 0, autoCount = 0;
+try { rscanLog = JSON.parse(fs.readFileSync(RSCAN_FILE, 'utf8')) || []; } catch (_) {}
+const beirut = t => new Date(t).toLocaleString('en-GB', { timeZone: 'Asia/Beirut', hour12: false });
+function rscanNote(type, msg) {
+  rscanLog.push({ t: Date.now(), type, msg }); rscanLog = rscanLog.slice(-300);
+  fs.writeFile(RSCAN_FILE, JSON.stringify(rscanLog), () => {});
+  console.log(new Date().toISOString(), 'auto-rscan', type, msg);
+}
+const genDead = (v, id) => ['v1', 'v2', 'v3'].every(k => { const x = v[id + '.' + k]; return x == null || !isFinite(x) || x < AUTO.minV; });
+function checkAutoRscan(v, conn) {
+  if (!AUTO.on || cfg.mode !== 'fbox' || gens.length < 2) return;
+  const now = Date.now();
+  if (conn !== 'online') return;                       // FBox itself offline: a reset cannot reach the PLC anyway
+  const allDead = gens.every(g => genDead(v, g.id));
+  if (!allDead) {
+    if (autoCount) {
+      rscanNote('recovered', 'voltage back after ' + autoCount + ' reset(s)');
+      notifyPhone('AL DHOUR - IO SCAN OK', 'Generator voltage is back at ' + beirut(now) + ' after ' + autoCount + ' automatic IO scan reset(s).', 'default', 'white_check_mark', true);
+    }
+    downSince = 0; autoCount = 0; return;
+  }
+  if (!downSince) { downSince = now; return; }
+  if (now - downSince < AUTO.confirm || now - autoLast < AUTO.retry || now - ioscanLast < 30000) return;
+  autoLast = ioscanLast = now; autoCount++;
+  const n = autoCount;
+  setTimeout(() => ioscanReset().then(() => {
+    rscanNote('reset', 'automatic reset #' + n + ' sent');
+    notifyPhone('AL DHOUR - IO SCAN RESET', 'All generator voltages read 0. Automatic IO scan reset #' + n + ' (%M440) sent at ' + beirut(now) + '. Will retry every ' + Math.round(AUTO.retry / 60000) + ' min until voltage returns.', 'high', 'arrows_counterclockwise', n === 1);
+  }).catch(e => rscanNote('failed', 'automatic reset #' + n + ' failed: ' + e.message)), 0);
+}
+
 // ---------- Poll loop ----------
 let polling = false;
 async function poll() {
@@ -598,7 +636,7 @@ async function poll() {
       if (values[h] != null) values[h] += (values[g.id + '.min'] || 0) / 60 + (values[g.id + '.sec'] || 0) / 3600;
     });
     state = { conn, updated: Date.now(), values, error: null };
-    trackRefuel(values); trackFuelLevel(values); trackToday(values); trackGenFuel(values); trackDataLog(values); checkFuelAlarm(values);
+    trackRefuel(values); trackFuelLevel(values); trackToday(values); trackGenFuel(values); trackDataLog(values); checkFuelAlarm(values); checkAutoRscan(values, conn);
     const last = history[history.length - 1];
     if (!last || Date.now() - last.t >= 60000) {
       const pt = { t: Date.now(), fuel: values.fuel_l ?? null };
@@ -1054,7 +1092,7 @@ const server = http.createServer((req, res) => {
       generators: gens.map(({ id, label, ratedKva }) => ({ id, label, ratedKva: ratedKva || null })), solar: SOLAR ? { id: SOLAR.id, label: SOLAR.label, kwp: SOLAR.kwp || null } : null,
       decimals: Object.fromEntries([...cfg.points.map(p => [p.key, p.decimals ?? 0]), ...(cfg.shared || []).map(p => [p.key, p.decimals ?? 0])]),
       demo: cfg.mode !== 'fbox' && cfg.mode !== 'push', now: Date.now(), pollSeconds: cfg.pollSeconds,
-      online: onlineCount(), solarTotal: { kwh: +sol.kwh.toFixed(2), since: sol.since, kw: +solarKw(state.values || {}).toFixed(1) }, solarSave: solarSave(), fuelToday: fuelToday(), genFuel: genFuel(state.values), outside: wNow ? { c: wNow.c, t: wNow.t } : null, alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
+      online: onlineCount(), solarTotal: { kwh: +sol.kwh.toFixed(2), since: sol.since, kw: +solarKw(state.values || {}).toFixed(1) }, solarSave: solarSave(), fuelToday: fuelToday(), genFuel: genFuel(state.values), outside: wNow ? { c: wNow.c, t: wNow.t } : null, alarm: { litres: alarmL, push: PUSH_ON, active: alarmActive }, autoRscan: { on: AUTO.on, resets: autoCount, log: rscanLog.slice(-20) }, conn: state.conn, error: state.error, updated: state.updated, values: state.values, history: history.filter(h => Date.now() - h.t < DAY)
     }));
   }
   const file = path.join(__dirname, 'public', url === '/' ? 'index.html' : url);
