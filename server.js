@@ -1,8 +1,7 @@
 // Power house monitor: polls the Flexem FBox cloud API and serves a shareable dashboard.
 // Requires Node 18+. No npm packages needed.  Run:  node server.js
 const http = require('http'), fs = require('fs'), path = require('path');
-const ebox = require('./ebox');
-const { textPdf } = require('./pdf');                // PDF reports for the phone, no packages                  // E.BOX reader (read only), see ebox.js
+const { textPdf } = require('./pdf');                // PDF reports for the phone, no packages
 const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
 // Hosting: secrets and switches can come from environment variables instead of config.json
 const E = process.env;
@@ -926,7 +925,7 @@ async function ioscanReset() {
   } finally { polling = false; }
 }
 
-// ---------- Daily phone reports (ntfy): power house summary at 09:05 and E.BOX report at 10:00, Beirut time ----------
+// ---------- Daily phone report (ntfy): power house summary at 09:05, Beirut time ----------
 // Uses NTFY_TOPIC (same as the alarms). Each report goes out once per day; the day is remembered in daily_push.json.
 const PUSH_FILE = path.join(__dirname, 'daily_push.json');
 let pushed2 = {}, pushTestLast = 0;
@@ -934,7 +933,6 @@ try { pushed2 = JSON.parse(fs.readFileSync(PUSH_FILE, 'utf8')) || {}; } catch (_
 const BHM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 function beirutNow() { const p = {}; for (const x of BHM.formatToParts(new Date())) p[x.type] = x.value; return { day: p.year + '-' + p.month + '-' + p.day, min: +p.hour * 60 + +p.minute }; }
 const n1 = x => x == null || !isFinite(x) ? '-' : (Math.round(x * 10) / 10).toLocaleString('en-US');
-const n2 = x => x == null || !isFinite(x) ? '-' : (+x).toFixed(2);
 function powerHouseText(day) {                     // 09:00 yesterday to 09:00 today, from the hourly data log
   const end = beirutMidnight(day) + 9 * 3600e3, start = end - DAY;
   const rows = dlog.filter(r => r.t >= start && r.t < end);
@@ -949,18 +947,6 @@ function powerHouseText(day) {                     // 09:00 yesterday to 09:00 t
   if (t0 != null && t1 != null) lines.push('Fuel used (tank): ' + n1(t0 - t1 + ref) + ' L (tank ' + n1(t0) + ' -> ' + n1(t1) + ' L' + (ref ? ', refuelled ' + n1(ref) + ' L' : '') + ')');
   return lines.join('\n');
 }
-function eboxText() {
-  const s = ebox.status(), b = s.boxes && s.boxes[0];
-  if (!b || !s.updated) return null;
-  const R = id => { const r = b.readings.find(x => x.id === id); return r ? r.value : null; };
-  const hm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', hour: '2-digit', minute: '2-digit' }).format(new Date(s.updated));
-  const m = { v: R('by0189d69'), a: R('by0200333'), kw: R('by021bebf'), kwh: R('by022c703') }, e = { v: R('by037ac47'), a: R('by0394b26'), kw: R('by0406742'), kwh: R('by0411d77') };
-  const t = { a: R('by045fbf6'), kw: R('by046e2bc'), kwh: R('by0476c8c') };
-  const one = (n, x) => n + ': ' + n1(x.v) + ' V, ' + n2(x.a) + ' A, ' + n2(x.kw) + ' kW, ' + n1(x.kwh) + ' kWh';
-  return ['Reading at ' + hm + (s.conn !== 'online' || Date.now() - s.updated > 600e3 ? ' (E.BOX not answering, last known values)' : ''), '',
-    one('MAROUN', m), one('ELIE', e), '', 'TOTAL: ' + n2(t.a) + ' A, ' + n2(t.kw) + ' kW, ' + n1(t.kwh) + ' kWh'].join('\n');
-}
-
 // PDF copies of the daily reports, sent to ntfy as attachments (ntfy.sh free: up to 2 MB per file)
 async function ntfyFile(title, buf, filename, message) {
   if (!NTFY_TOPIC || !buf) return false;
@@ -981,27 +967,8 @@ function powerHousePdf(day) {
   L.push({ text: 'TOTAL            ' + d.cols.map((c, i) => cell(d.total[i], i)).join(''), bold: true, size: 7 }, '', { text: d.note, size: 7 });
   return textPdf(L, { landscape: true, footer: 'AIN EBEL POWER HOUSE - generated ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC' });
 }
-function eboxPdf() {
-  const s = ebox.status(), b = s.boxes && s.boxes[0];
-  if (!b || !s.updated) return null;
-  const R = id => { const r = b.readings.find(x => x.id === id); return r ? r.value : null; };
-  const when = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(s.updated));
-  const row = (k, v, u) => '  ' + (k + ' ').padEnd(22, '.') + ' ' + (u === 'A' || u === 'kW' || u === 'Hz' ? n2(v) : n1(v)) + ' ' + u;
-  const sec = (name, ids) => [{ text: ' ', size: 6 }, { text: name, bold: true, size: 12 }, '  ' + '-'.repeat(40),
-    row('Voltage', R(ids[0]), 'V'), row('Current', R(ids[2]), 'A'), row('Frequency', R(ids[1]), 'Hz'), row('Power (now)', R(ids[3]), 'kW'), row('Energy consumed', R(ids[4]), 'kWh')];
-  const L = [{ text: 'AIN EBEL POWER HOUSE', bold: true, size: 15 }, { text: 'Electrical Consumption Report - E.BOX', bold: true, size: 12 }, '',
-    'Reading time: ' + when + ' (Beirut)', ...(s.conn !== 'online' || Date.now() - s.updated > 600e3 ? ['Note: the E.BOX is not answering, these are the last known values.'] : []),
-    ...sec('MAROUN', ['by0189d69', 'by0193d8d', 'by0200333', 'by021bebf', 'by022c703']),
-    ...sec('ELIE', ['by037ac47', 'by0383446', 'by0394b26', 'by0406742', 'by0411d77']),
-    { text: ' ', size: 6 }, { text: 'TOTAL CONSUMPTION', bold: true, size: 12 }, '  ' + '-'.repeat(40),
-    row('Maroun', R('by022c703'), 'kWh'), row('Elie', R('by0411d77'), 'kWh'), { text: row('Total energy', R('by0476c8c'), 'kWh'), bold: true },
-    row('Total current', R('by045fbf6'), 'A'), row('Total power (now)', R('by046e2bc'), 'kW'), '',
-    'Live readings: https://aldhour-powerhouse.onrender.com/ebox.html'];
-  return textPdf(L, { size: 11, footer: 'Generated automatically from the E.BOX monitoring system' });
-}
 const DAILY_PUSHES = [
   { key: 'powerhouse', at: 9 * 60 + 5, title: 'AIN EBEL POWER HOUSE - daily report', tags: 'zap', text: powerHouseText, pdf: powerHousePdf, file: day => 'AinEbel-power-house-' + day + '.pdf' },
-  { key: 'ebox', at: 10 * 60, title: 'E.BOX - Maroun & Elie', tags: 'electric_plug', text: () => eboxText(), pdf: () => eboxPdf(), file: day => 'EBOX-Maroun-Elie-' + day + '.pdf' }
 ];
 async function dailyPushes() {
   if (!NTFY_TOPIC) return;
@@ -1182,10 +1149,6 @@ const server = http.createServer((req, res) => {
     Promise.all(DAILY_PUSHES.map(async p => { const t = p.text(day); if (!t) return false; const a = await notifyPhone('TEST - ' + p.title, t, 'default', p.tags, false); let b = false; try { b = await ntfyFile('TEST - ' + p.title + ' (PDF)', p.pdf(day), p.file(day)); } catch (e) { console.error('test pdf', e.message); } return a && b; }))
       .then(r => res.end(JSON.stringify({ ok: r.some(Boolean), sent: r }))).catch(e => res.end(JSON.stringify({ ok: false, error: e.message })));
     return;
-  }
-  if (url === '/api/ebox/status') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    return res.end(JSON.stringify(ebox.status()));
   }
   if (url === '/api/status') {
     const vid = (new URL(req.url, 'http://x').searchParams.get('v') || '');
