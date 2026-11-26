@@ -928,7 +928,7 @@ async function ioscanReset() {
 // ---------- Daily phone report (ntfy): power house summary at 09:05, Beirut time ----------
 // Uses NTFY_TOPIC (same as the alarms). Each report goes out once per day; the day is remembered in daily_push.json.
 const PUSH_FILE = path.join(__dirname, 'daily_push.json');
-let pushed2 = {}, pushTestLast = 0;
+let pushed2 = {};
 try { pushed2 = JSON.parse(fs.readFileSync(PUSH_FILE, 'utf8')) || {}; } catch (_) {}
 const BHM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 function beirutNow() { const p = {}; for (const x of BHM.formatToParts(new Date())) p[x.type] = x.value; return { day: p.year + '-' + p.month + '-' + p.day, min: +p.hour * 60 + +p.minute }; }
@@ -1140,15 +1140,6 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     const ok = cfg.mode === 'fbox';
     return res.end(JSON.stringify({ ok, conn: ok ? mh.conn : 'stale', error: mh.error, updated: mh.updated, values: mh.values, history: mhHist, fuelToday: mhFuelToday(), solarSave: solarSave(mmon.solar, msol.kwh), genFuel: mhGenFuel(mh.values), solarTotal: { kwh: +msol.kwh.toFixed(2), since: msol.since, kw: +Math.max(0, mh.values['solar.kw'] || 0).toFixed(1) }, now: Date.now() }));
-  }
-  if (url === '/api/push-test' && req.method === 'POST') {          // sends both daily reports to the phone now, as a test
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    if (!NTFY_TOPIC) return res.end(JSON.stringify({ ok: false, error: 'NTFY_TOPIC is not set' }));
-    if (Date.now() - pushTestLast < 60e3) return res.end(JSON.stringify({ ok: false, error: 'wait a minute between tests' }));
-    pushTestLast = Date.now(); const day = beirutNow().day;
-    Promise.all(DAILY_PUSHES.map(async p => { const t = p.text(day); if (!t) return false; const a = await notifyPhone('TEST - ' + p.title, t, 'default', p.tags, false); let b = false; try { b = await ntfyFile('TEST - ' + p.title + ' (PDF)', p.pdf(day), p.file(day)); } catch (e) { console.error('test pdf', e.message); } return a && b; }))
-      .then(r => res.end(JSON.stringify({ ok: r.some(Boolean), sent: r }))).catch(e => res.end(JSON.stringify({ ok: false, error: e.message })));
-    return;
   }
   if (url === '/api/status') {
     const vid = (new URL(req.url, 'http://x').searchParams.get('v') || '');
