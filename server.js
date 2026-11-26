@@ -1001,7 +1001,7 @@ function eboxPdf() {
 }
 const DAILY_PUSHES = [
   { key: 'powerhouse', at: 9 * 60 + 5, title: 'AIN EBEL POWER HOUSE - daily report', tags: 'zap', text: powerHouseText, pdf: powerHousePdf, file: day => 'AinEbel-power-house-' + day + '.pdf' },
-  { key: 'ebox', at: 10 * 60, title: 'E.BOX - Maroun & Elie', tags: 'electric_plug', text: () => eboxText(), pdf: () => eboxPdf(), file: day => 'EBOX-Maroun-Elie-' + day + '.pdf' }
+  // The 10:00 E.BOX report was removed from the daily phone reports on request; /ebox.html keeps showing the live readings.
 ];
 async function dailyPushes() {
   if (!NTFY_TOPIC) return;
