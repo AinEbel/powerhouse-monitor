@@ -861,9 +861,9 @@ async function takeOver() {
 
 // ---------- IO scan reset: hidden push button on the AIN EBEL tile writes %M440 on the Schneider PLC (Al Dhour FBox) ----------
 // The FBox cloud writes to a monitoring point by its name, so %M440 must exist in FBox Manager as a read/write bit point.
-// Its name and group default to "IO SCAN RESET" / "PLC CONTROL" and can be changed with IOSCAN_NAME / IOSCAN_GROUP.
+// Its name and group default to "RSCAN" / "FUEL TANK" (as set up in FBox Manager) and can be changed with IOSCAN_NAME / IOSCAN_GROUP.
 // Momentary push: write 1, hold IOSCAN_HOLD_MS (1.5 s), write 0. Touches nothing that is recorded (kWh, fuel, solar, logs).
-const IOSCAN = { name: E.IOSCAN_NAME || 'IO SCAN RESET', group: E.IOSCAN_GROUP || 'PLC CONTROL', hold: Number(E.IOSCAN_HOLD_MS) || 1500, pin: E.IOSCAN_PIN || '' };
+const IOSCAN = { name: E.IOSCAN_NAME || 'RSCAN', group: E.IOSCAN_GROUP || 'FUEL TANK', hold: Number(E.IOSCAN_HOLD_MS) || 1500, pin: E.IOSCAN_PIN || '' };
 let ioscanLast = 0;
 async function fboxWrite(boxNo, name, group, value) {
   const t = await getToken();
